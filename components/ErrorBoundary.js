@@ -2,7 +2,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import ActionButton from './ActionButton'; // Butonumuzu kullanalım
-import { COLORS } from '../constants/theme'; // Renklerimizi kullanalım
+import { COLORS, SIZES } from '../constants/theme'; // Renklerimizi kullanalım
 
 // Hata durumunda loglama için basit bir global fonksiyon (GameProvider'daki logError'a benzer)
 const logRenderError = (error, errorInfo) => {
@@ -12,7 +12,8 @@ const logRenderError = (error, errorInfo) => {
      console.error("Error:", error?.message || error);
      console.error("Component Stack:", errorInfo?.componentStack);
      console.error(`!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n`);
-      // TODO: Sentry.captureException(error, { extra: { componentStack: errorInfo?.componentStack } });
+      // TODO: Entegre edilecekse Sentry gibi bir servise gönderme
+      // Sentry.captureException(error, { extra: { componentStack: errorInfo?.componentStack } });
 };
 
 
@@ -24,26 +25,31 @@ class ErrorBoundary extends React.Component {
 
   // State'i güncelle, fallback UI gösterilsin
   static getDerivedStateFromError(error) {
-    return { hasError: true, error: error };
+    // Sadece hasError state'ini güncelle, diğer detaylar componentDidCatch'te
+    return { hasError: true };
   }
 
-  // Hata bilgisini logla
+  // Hata bilgisini logla ve state'e kaydet
   componentDidCatch(error, errorInfo) {
-    this.setState({ errorInfo: errorInfo });
+    this.setState({ error: error, errorInfo: errorInfo });
     logRenderError(error, errorInfo); // Hata loglama fonksiyonunu çağır
      // İsteğe bağlı: Hata raporlama servisine gönder
      // Sentry.captureException(error, { extra: errorInfo });
   }
 
-  // Yeniden deneme fonksiyonu (opsiyonel)
+  // Yeniden deneme fonksiyonu
   handleRetry = () => {
-    console.log("Retrying after error...");
+    console.log("Retrying after error boundary...");
+    // Hata state'ini temizle
     this.setState({ hasError: false, error: null, errorInfo: null });
-    // İsteğe bağlı: Uygulamayı yeniden yüklemek için bir yöntem eklenebilir (örn. DevSettings.reload())
-    // import { DevSettings } from 'react-native'; DevSettings.reload();
-    // VEYA state'i sıfırlayan bir context action çağrılabilir.
-    if(this.props.onRetry) {
+    // Eğer dışarıdan bir retry fonksiyonu verildiyse onu çağır
+    if(this.props.onRetry && typeof this.props.onRetry === 'function') {
         this.props.onRetry();
+    } else {
+        // Varsayılan davranış: Belki uygulamayı yeniden başlatmayı dene (dikkatli kullanılmalı)
+        // import { DevSettings } from 'react-native';
+        // DevSettings.reload();
+        console.warn("No onRetry prop provided to ErrorBoundary. Resetting internal state only.");
     }
   };
 
@@ -57,13 +63,13 @@ class ErrorBoundary extends React.Component {
           <Text style={styles.message}>Beklenmedik bir sorunla karşılaşıldı. Lütfen tekrar deneyin veya uygulamayı yeniden başlatın.</Text>
           {/* Hata detaylarını göstermek (sadece geliştirme sırasında) */}
           {__DEV__ && this.state.error && (
-            <ScrollView style={styles.errorDetailsScroll}>
+            <ScrollView style={styles.errorDetailsScroll} persistentScrollbar={true}>
               <Text style={styles.errorTitle}>Hata Detayı:</Text>
-              <Text style={styles.errorText}>{this.state.error.toString()}</Text>
-              {this.state.errorInfo && (
+              <Text selectable style={styles.errorText}>{this.state.error.toString()}</Text>
+              {this.state.errorInfo && this.state.errorInfo.componentStack && (
                 <>
-                  <Text style={styles.errorTitle}>Component Stack:</Text>
-                  <Text style={styles.errorText}>{this.state.errorInfo.componentStack}</Text>
+                  <Text style={styles.errorTitle}>Component Yığını:</Text>
+                  <Text selectable style={styles.errorText}>{this.state.errorInfo.componentStack}</Text>
                 </>
               )}
             </ScrollView>
@@ -73,6 +79,7 @@ class ErrorBoundary extends React.Component {
             onPress={this.handleRetry}
             type="danger"
             style={styles.button}
+            iconLeft="refresh-outline" // İkon eklendi
           />
         </View>
       );
@@ -88,46 +95,54 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 25, // Biraz daha fazla padding
     backgroundColor: COLORS.backgroundGradient[1] || '#2d3748', // Fallback color
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 26, // Biraz daha büyük
+    fontFamily: SIZES.bold, // Kalın font
     color: COLORS.negative || '#f56565',
     marginBottom: 15,
     textAlign: 'center',
   },
   message: {
-    fontSize: 16,
+    fontSize: 17, // Biraz daha büyük
+    fontFamily: SIZES.regular,
     color: COLORS.textSecondary || '#a0aec0',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 25, // Daha fazla boşluk
+    lineHeight: 24, // Satır yüksekliği
   },
   errorDetailsScroll: {
-      maxHeight: 200,
+      maxHeight: 250, // Biraz daha fazla alan
       width: '100%',
       backgroundColor: 'rgba(0,0,0,0.2)',
-      borderRadius: 5,
-      padding: 10,
-      marginBottom: 20,
+      borderRadius: SIZES.inputRadius, // Daha yumuşak köşe
+      padding: 15, // Daha fazla iç boşluk
+      marginBottom: 25, // Daha fazla boşluk
+      borderWidth: 1,
+      borderColor: COLORS.textMuted,
   },
    errorTitle: {
-      fontSize: 14,
-      fontWeight: 'bold',
+      fontSize: 15, // Biraz daha büyük
+      fontFamily: SIZES.bold, // Kalın font
       color: COLORS.warning || '#ed8936',
       marginTop: 10,
+      marginBottom: 5,
    },
    errorText: {
-      fontSize: 12,
+      fontSize: 12, // Stack trace için daha küçük olabilir
+      fontFamily: SIZES.regular, // Okunabilirlik için regular
       color: COLORS.textMuted || '#718096',
       marginTop: 5,
+      lineHeight: 18,
    },
    button: {
-       marginTop: 10,
+       marginTop: 15, // Diğer elemanlarla boşluk
        width: '80%',
        maxWidth: 300,
    }
 });
 
 export default ErrorBoundary;
+// --- END OF FILE ErrorBoundary.js ---

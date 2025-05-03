@@ -1,125 +1,128 @@
-// components/Card.js
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable } from 'react-native';
-import { MotiView, AnimatePresence } from 'moti'; // Import Moti
+// --- START OF FILE components/Card.js (Clean, Simple) ---
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS } from '../constants/theme';
+import { COLORS, SIZES } from '../constants/theme';
 
-// --- DÜZELTME: CARD_THEME tanımı eklendi ---
+// --- THEMES ---
 const CARD_THEME = {
-    kapalı: {
-        bg: [COLORS.textMuted, COLORS.textSecondary], // Gri tonlar
-        text: COLORS.textPrimary,
-    },
-    mavi: {
-        bg: [COLORS.accent, '#3182ce'], // Mavi tonları (accent'ten biraz farklı)
-        text: COLORS.textPrimary,
-    },
-    kırmızı: {
-        bg: [COLORS.negative, '#c53030'], // Kırmızı tonları (negative'den biraz farklı)
-        text: COLORS.textPrimary,
-    },
-    siyah: {
-        bg: ['#2D3748', '#1A202C'], // Çok koyu gri/siyah tonları
-        text: COLORS.textSecondary,
-    },
-    // İhtiyaç olursa diğer kart türleri için de eklenebilir
+    kapalı: { bg: ['#6E7A8A', '#4A5568'], text: COLORS.white, border: 'rgba(255, 255, 255, 0.1)' },
+    mavi: { bg: [COLORS.accent, COLORS.accentDark], text: COLORS.white, border: COLORS.accentLight },
+    kırmızı: { bg: [COLORS.negative, COLORS.negativeDark], text: COLORS.white, border: COLORS.negativeLight },
+    siyah: { bg: ['#3A475A', '#1A202C'], text: COLORS.textSecondary, border: '#5A677A' },
+    custom: { bg: [COLORS.warning, COLORS.warningDark], text: COLORS.black, border: COLORS.warningLight },
 };
-// --- DÜZELTME SONU ---
 
-const { width } = Dimensions.get('window');
-export const CARD_WIDTH = width * 0.7;
-export const CARD_HEIGHT = CARD_WIDTH * 1.45; // Adjusted aspect ratio slightly
+// --- SIZING ---
+const CARD_WIDTH_PERCENTAGE = 0.75;
+export const CARD_MAX_WIDTH = SIZES.cardMaxWidth;
+export const CARD_ASPECT_RATIO = 1.5;
 
-const Card = ({ type = 'kapalı', text = '', isVisible = true, style }) => {
-    const [isFront, setIsFront] = useState(type !== 'kapalı');
-    // theme artık CARD_THEME[type] tanımsız olsa bile CARD_THEME.kapalı'yı bulacak
-    const theme = CARD_THEME[type] || CARD_THEME.kapalı;
-    const cardText = type === 'kapalı' ? '?' : String(text ?? '');
+// --- CARD COMPONENT (Simplified) ---
+const Card = ({ type = 'kapalı', text = '', isVisible = false, style }) => {
+    const { width: windowWidth } = useWindowDimensions();
 
-    // Update face based on type prop change
-    useEffect(() => {
-        setIsFront(type !== 'kapalı');
-    }, [type]);
+    // --- DERIVED VALUES ---
+    const { effectiveType, theme, showFront } = useMemo(() => {
+        let effType = type;
+        const safeText = String(text ?? '');
+        if (effType === 'kırmızı' && safeText.startsWith("ÖZEL:")) { effType = 'custom'; }
+        else if (!CARD_THEME[effType]) { effType = 'kapalı'; }
+        const thm = CARD_THEME[effType] || CARD_THEME.kapalı;
+        const show = isVisible && effType !== 'kapalı';
+        return { effectiveType: effType, theme: thm, showFront: show };
+    }, [type, text, isVisible]);
+
+    const { dynamicCardWidth, dynamicCardHeight } = useMemo(() => {
+        const width = Math.min(windowWidth * CARD_WIDTH_PERCENTAGE, CARD_MAX_WIDTH);
+        const height = width * CARD_ASPECT_RATIO;
+        return { dynamicCardWidth: width, dynamicCardHeight: height };
+    }, [windowWidth]);
+
+    // If not visible, render nothing to avoid layout shifts or opacity issues
+    if (!isVisible) {
+        return null;
+    }
+
+    // Determine which theme to use based on whether front or back is shown
+    const displayTheme = showFront ? theme : CARD_THEME.kapalı;
 
     return (
-        // AnimatePresence for smooth visibility transitions
-        <AnimatePresence>
-            {isVisible && (
-                // Outer container for scaling and opacity
-                <MotiView
-                    from={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ type: 'timing', duration: 250 }}
-                    style={[styles.cardOuterContainer, style]}
-                >
-                    {/* Pressable for potential future interactions */}
-                    <Pressable>
-                        {/* Inner container handles the 3D flip */}
-                        <MotiView
-                            style={styles.cardInnerWrapper}
-                            animate={{ rotateY: isFront ? '0deg' : '180deg' }}
-                            transition={{ type: 'timing', duration: 500 }} // Flip duration
-                        >
-                            {/* Front Face */}
-                            <MotiView style={[styles.cardFace, styles.cardFaceFront]}
-                                      // Hide backface when front is visible
-                                      animate={{ opacity: isFront ? 1 : 0 }}
-                                      transition={{type:'timing', duration: 100, delay: isFront ? 200: 0}} // Fade in/out during flip
-                            >
-                                {/* --- DÜZELTME: theme.bg artık tanımsız olmamalı --- */}
-                                <LinearGradient colors={theme.bg} style={styles.cardInnerContainer}>
-                                    <Text style={[styles.cardText, { color: theme.text }]}>
-                                        {String(text ?? '')}
-                                    </Text>
-                                </LinearGradient>
-                            </MotiView>
-
-                            {/* Back Face */}
-                            <MotiView style={[styles.cardFace, styles.cardFaceBack]}
-                                      // Hide backface when back is visible (it's rotated)
-                                       animate={{ opacity: !isFront ? 1 : 0 }}
-                                       transition={{type:'timing', duration: 100, delay: !isFront ? 200: 0}}
-                            >
-                                {/* --- DÜZELTME: CARD_THEME.kapalı.bg artık tanımsız olmamalı --- */}
-                                <LinearGradient colors={CARD_THEME.kapalı.bg} style={[styles.cardInnerContainer, styles.backFaceContent]}>
-                                    <Text style={[styles.cardText, styles.closedCardText, { color: CARD_THEME.kapalı.text }]}>?</Text>
-                                </LinearGradient>
-                            </MotiView>
-                        </MotiView>
-                    </Pressable>
-                </MotiView>
-            )}
-        </AnimatePresence>
+        // Basic View container
+        <View
+            style={[
+                styles.cardOuterContainer,
+                { width: dynamicCardWidth, height: dynamicCardHeight },
+                style, // Allow external styles
+                // Apply pointerEvents directly to style
+                { pointerEvents: isVisible ? 'auto' : 'none' }
+            ]}
+        >
+            <LinearGradient
+                colors={displayTheme.bg}
+                style={[styles.cardInnerContainer, { borderColor: displayTheme.border }]}
+            >
+                {showFront ? (
+                    // Front Content
+                    <Text style={[styles.cardText, { color: displayTheme.text }]} selectable={true}>
+                        {String(text ?? '')}
+                    </Text>
+                ) : (
+                    // Back Content
+                    <>
+                        <Text style={[styles.closedCardText, { color: displayTheme.text }]}>🃏</Text>
+                        <Text style={styles.closedCardBrand}>Kart Oyunu</Text>
+                    </>
+                )}
+            </LinearGradient>
+        </View>
     );
 };
 
+// --- STYLES ---
 const styles = StyleSheet.create({
     cardOuterContainer: {
-        width: CARD_WIDTH, height: CARD_HEIGHT, marginVertical: 15,
-        // Perspective for 3D effect (important for flip)
-        perspective: 1000,
+        alignSelf: 'center',
+        shadowColor: COLORS.darkShadow,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 7,
+        borderRadius: SIZES.cardRadius,
+        // Add a fallback background color in case gradient fails? Optional.
+        // backgroundColor: CARD_THEME.kapalı.bg[1],
     },
-    cardInnerWrapper: { // Handles the flip transform
-        width: '100%', height: '100%',
-        transformStyle: 'preserve-3d', // Needed for 3D rotation
-    },
-    cardFace: {
-        width: '100%', height: '100%',
-        borderRadius: 18,
-        position: 'absolute', // Both faces occupy the same space
-        backfaceVisibility: 'hidden', // Hide the face turned away
+    cardInnerContainer: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: SIZES.padding,
+        borderWidth: 1,
+        borderColor: 'transparent',
+        borderRadius: SIZES.cardRadius,
         overflow: 'hidden',
-        shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 5, elevation: 8,
-        borderWidth: 1, borderColor: 'rgba(255, 255, 255, 0.1)', // Subtle border
+        position: 'relative',
     },
-    cardFaceFront: { zIndex: 2 /* Ensure front is initially above */ },
-    cardFaceBack: { transform: [{ rotateY: '180deg' }] /* Pre-rotate back face */ },
-    cardInnerContainer: { flex: 1, borderRadius: 17, alignItems: 'center', justifyContent: 'center', padding: 20, },
-    backFaceContent: {},
-    cardText: { fontSize: 19, fontWeight: '600', textAlign: 'center', lineHeight: 28, fontFamily: 'Oswald-Regular' /* Use Custom Font */ },
-    closedCardText: { fontSize: 90, fontWeight: 'bold', opacity: 0.8, fontFamily: 'Oswald-Bold' /* Use Custom Font */ },
+    cardText: {
+        fontSize: SIZES.body,
+        fontFamily: SIZES.regular,
+        textAlign: 'center',
+        lineHeight: SIZES.body * 1.5,
+    },
+    closedCardText: {
+        fontSize: SIZES.width * 0.15,
+        fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
+        opacity: 0.9,
+    },
+    closedCardBrand: {
+        position: 'absolute',
+        bottom: SIZES.paddingSmall,
+        fontSize: SIZES.small,
+        fontFamily: SIZES.bold,
+        color: 'rgba(255, 255, 255, 0.6)',
+        letterSpacing: 0.5,
+    },
 });
 
 export default Card;
+// --- END OF FILE components/Card.js ---
