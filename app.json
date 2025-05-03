@@ -19,10 +19,19 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.enestasyurek.KartOyunu"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bbbf143b-d9cd-4854-b9cc-c45180c6311d"
+      }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }
