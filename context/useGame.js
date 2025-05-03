@@ -13,7 +13,7 @@ export const useGame = () => {
     return {
         gameState: context.gameState,
         actions: context.actions,
-        customTasksInput: context.customTasksInput,       // Needed by SetupScreen
-        setCustomTasksInput: context.setCustomTasksInput // Needed by SetupScreen
+        // customTasksInput: context.customTasksInput,    // KALDIRILDI
+        // setCustomTasksInput: context.setCustomTasksInput // KALDIRILDI
      };
 };

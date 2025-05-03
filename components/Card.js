@@ -5,14 +5,35 @@ import { MotiView, AnimatePresence } from 'moti'; // Import Moti
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../constants/theme';
 
-// Card Themes (Same as before)
-const CARD_THEME = { /* ... */ };
+// --- DÜZELTME: CARD_THEME tanımı eklendi ---
+const CARD_THEME = {
+    kapalı: {
+        bg: [COLORS.textMuted, COLORS.textSecondary], // Gri tonlar
+        text: COLORS.textPrimary,
+    },
+    mavi: {
+        bg: [COLORS.accent, '#3182ce'], // Mavi tonları (accent'ten biraz farklı)
+        text: COLORS.textPrimary,
+    },
+    kırmızı: {
+        bg: [COLORS.negative, '#c53030'], // Kırmızı tonları (negative'den biraz farklı)
+        text: COLORS.textPrimary,
+    },
+    siyah: {
+        bg: ['#2D3748', '#1A202C'], // Çok koyu gri/siyah tonları
+        text: COLORS.textSecondary,
+    },
+    // İhtiyaç olursa diğer kart türleri için de eklenebilir
+};
+// --- DÜZELTME SONU ---
+
 const { width } = Dimensions.get('window');
 export const CARD_WIDTH = width * 0.7;
 export const CARD_HEIGHT = CARD_WIDTH * 1.45; // Adjusted aspect ratio slightly
 
 const Card = ({ type = 'kapalı', text = '', isVisible = true, style }) => {
     const [isFront, setIsFront] = useState(type !== 'kapalı');
+    // theme artık CARD_THEME[type] tanımsız olsa bile CARD_THEME.kapalı'yı bulacak
     const theme = CARD_THEME[type] || CARD_THEME.kapalı;
     const cardText = type === 'kapalı' ? '?' : String(text ?? '');
 
@@ -47,6 +68,7 @@ const Card = ({ type = 'kapalı', text = '', isVisible = true, style }) => {
                                       animate={{ opacity: isFront ? 1 : 0 }}
                                       transition={{type:'timing', duration: 100, delay: isFront ? 200: 0}} // Fade in/out during flip
                             >
+                                {/* --- DÜZELTME: theme.bg artık tanımsız olmamalı --- */}
                                 <LinearGradient colors={theme.bg} style={styles.cardInnerContainer}>
                                     <Text style={[styles.cardText, { color: theme.text }]}>
                                         {String(text ?? '')}
@@ -60,6 +82,7 @@ const Card = ({ type = 'kapalı', text = '', isVisible = true, style }) => {
                                        animate={{ opacity: !isFront ? 1 : 0 }}
                                        transition={{type:'timing', duration: 100, delay: !isFront ? 200: 0}}
                             >
+                                {/* --- DÜZELTME: CARD_THEME.kapalı.bg artık tanımsız olmamalı --- */}
                                 <LinearGradient colors={CARD_THEME.kapalı.bg} style={[styles.cardInnerContainer, styles.backFaceContent]}>
                                     <Text style={[styles.cardText, styles.closedCardText, { color: CARD_THEME.kapalı.text }]}>?</Text>
                                 </LinearGradient>

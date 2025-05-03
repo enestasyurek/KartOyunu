@@ -26,7 +26,7 @@ const configureAnimation = () => { try { LayoutAnimation.configureNext(LayoutAni
 export const GameProvider = ({ children }) => {
     // --- State ve Dispatch ---
     const [gameState, dispatch] = useReducer(gameReducer, initialGameState);
-    const [customTasksInput, setCustomTasksInput] = useState([]);
+    // const [customTasksInput, setCustomTasksInput] = useState([]); // KALDIRILDI
 
     // --- Custom Hooks ---
     const playSound = useSounds();
@@ -59,81 +59,59 @@ export const GameProvider = ({ children }) => {
     // --- Aksiyon Fonksiyonları (dispatch + yan etkiler) ---
 
     // !!! DÜZELTME: unlockAchievement ---
-    // setGameState yerine dispatch kullanıldığından emin ol
     const unlockAchievement = useCallback((achievementId) => {
        try {
-           // Yan etkiyi tetiklemeden ÖNCE state'i değiştirmeyi dene (dispatch ile)
            dispatch({ type: 'UNLOCK_ACHIEVEMENT', payload: { achievementId } });
-           // Ses/Haptik'i, başarılı bir state değişikliği olmasa bile tetikleyebiliriz,
-           // ya da state'i okuyup ona göre karar verebiliriz (ama state asenkron güncellenir)
-           // En güvenlisi, efekti tetiklemek ve reducer'ın state'i doğru yönetmesini sağlamak.
            triggerFeedback(Haptics.NotificationFeedbackType.Success, 'achievement');
        } catch(e){ logError('unlockAchievement Action', e); }
-    }, [dispatch, triggerFeedback]); // gameState.achievements kaldırıldı, çünkü kontrolü reducer yapmalı
+    }, [dispatch, triggerFeedback]); // Bağımlılıklar güncellendi
 
     // !!! DÜZELTME: updateStat ---
-    // setGameState yerine dispatch kullanıldığından emin ol
     const updateStat = useCallback((statKey, valueIncrement = 1, playerId = null) => {
        try {
            dispatch({ type: 'UPDATE_STAT', payload: { statKey, valueIncrement, playerId } });
-           // Bu genellikle sessiz bir işlem olduğu için feedback yok
        } catch(e){ logError('updateStat Action', e); }
-    }, [dispatch]); // Bağımlılık sadece dispatch
+    }, [dispatch]); // Bağımlılıklar güncellendi
 
     const markAchievementNotified = useCallback((achievementId) => {
         try {
             configureAnimation();
             dispatch({ type: 'MARK_ACHIEVEMENT_NOTIFIED', payload: { achievementId } });
         } catch (error) { logError('markAchievementNotified Action', error); }
-    }, [dispatch]); // Sadece dispatch'e bağlı
+    }, [dispatch]);
 
      // --- endGame, nextTurn vs. için Fonksiyon Referansları (useCallback ile) ---
-     // Bu fonksiyonların tanımları, diğerlerini çağırmadan önce yapılmalı veya
-     // useCallback bağımlılıkları doğru ayarlanmalı.
-
-     // endGame'i tanımla
      const endGame = useCallback(() => {
        try {
-           updateStat('gamesPlayed'); // Önce stat güncelle (dispatch eder)
-           // Kazananı bulma ve diğer stat/başarım tetiklemeleri endGame action içinde değil,
-           // TRIGGER_END_GAME reducer'ında yapılabilir veya burada state okunarak yapılabilir.
-           // Reducer'da yapmak daha merkezi olur.
+           updateStat('gamesPlayed');
            const winnerPlayer = gameState.players.find(p => p.score >= 20);
            if(winnerPlayer){
-               updateStat('wins', 1, winnerPlayer.id); // Stat güncelle
-               unlockAchievement('first_win'); // Başarımı aç
+               updateStat('wins', 1, winnerPlayer.id);
+               unlockAchievement('first_win');
            }
-           unlockAchievement('first_game'); // İlk oyun başarımı
-
-           dispatch({ type: 'TRIGGER_END_GAME' }); // Reducer'a haber ver
-           triggerFeedback(Haptics.NotificationFeedbackType.Success, 'gameEnd'); // Geri bildirimi tetikle
+           unlockAchievement('first_game');
+           dispatch({ type: 'TRIGGER_END_GAME' });
+           triggerFeedback(Haptics.NotificationFeedbackType.Success, 'gameEnd');
        } catch(error) { logError('endGame Action Logic', error); }
-   }, [gameState.players, dispatch, updateStat, unlockAchievement, triggerFeedback]); // Bağımlılıklar
+   }, [gameState.players, dispatch, updateStat, unlockAchievement, triggerFeedback]);
 
-     // nextTurn'ü tanımla
     const nextTurn = useCallback((playerIndexArg) => {
        try {
-            // Oyun sonu kontrolü useEffect'e taşındı. Sadece PASS_TURN dispatch et.
             dispatch({ type: 'PASS_TURN', payload: { playerIndex: playerIndexArg } });
             triggerFeedback(Haptics.NotificationFeedbackType.Warning, 'turnChange');
        } catch (error) { logError('nextTurn Action', error); }
    }, [dispatch, triggerFeedback]);
 
-    // drawNewBlueCardForPlayer'ı tanımla
     const drawNewBlueCardForPlayer = useCallback((playerId) => {
        try {
-           // Oyuncu kontrolü reducer içinde yapılabilir veya burada:
-           // const playerExists = gameState.players.some(p => p.id === playerId);
-           // if (!playerExists) { console.warn(`Player ${playerId} not found.`); return; }
            dispatch({ type: 'DRAW_NEW_BLUE_CARD', payload: { playerId } });
            playSound('cardDraw');
        } catch (error) { logError('drawNewBlueCardForPlayer Action', error); }
-   }, [dispatch, playSound]); // gameState.players kaldırıldı
+   }, [dispatch, playSound]); // Bağımlılıklar güncellendi
 
-    // processVotingResults'ı tanımla
     const processVotingResults = useCallback((finalVotes, nextTurnLogic) => {
        try {
-           const votingInfoSnapshot = gameState.votingInfo; // Read current state
+           const votingInfoSnapshot = gameState.votingInfo;
            if (!votingInfoSnapshot) { logError('processVotingResults', new Error("votingInfo is null")); return; }
            const yesVotes = Object.values(finalVotes).filter(v => v === 'yes').length;
            const noVotes = Object.values(finalVotes).filter(v => v === 'no').length;
@@ -142,42 +120,33 @@ export const GameProvider = ({ children }) => {
            const performerId = votingInfoSnapshot.performerId;
            const points = 5;
 
-           // Dispatch action for reducer to update state
            dispatch({ type: 'PROCESS_VOTE_RESULT', payload: { success, yesVotes, noVotes, performerId, points } });
-           // Trigger feedback based on success
            triggerFeedback(success ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error, success ? 'scorePoint' : 'error');
 
-           // Trigger side effects after dispatching
            if (success) {
                 unlockAchievement('voted_task_win');
                 updateStat('votableTasksWon', 1, performerId);
                 updateStat('totalScoreAccumulated', points);
-                // Read potentially stale state for achievement check - this is tricky
-                const performer = gameState.players.find(p=>p.id === performerId);
-                const wasDelegated = gameState.selectedPlayerForTask === performerId;
-                // Check potential score
+                const performer = gameState.players.find(p=>p.id === performerId); // Eski state okunabilir
+                const wasDelegated = gameState.selectedPlayerForTask === performerId; // Eski state okunabilir
                 if(performer && (performer.score + points) >= 30) unlockAchievement('high_scorer');
-                if (wasDelegated) { drawNewBlueCardForPlayer(performerId); } // Draw new card
+                if (wasDelegated) { drawNewBlueCardForPlayer(performerId); }
            }
-           // Schedule next turn AFTER results are processed and side effects triggered
            setTimeout(() => {
                console.log("Executing nextTurnLogic after voting results processing...");
-               // dispatch({ type: 'CLEAR_SELECTION' }); // Reducer handles this
-               nextTurnLogic(); // Execute the stored next turn logic
+               nextTurnLogic();
            }, 2000);
 
        } catch(error) {
            logError('processVotingResults Action Logic', error);
-           // Attempt recovery
            setTimeout(() => {
                console.log("Executing recovery nextTurnLogic after voting error...");
                dispatch({ type: 'CLEAR_SELECTION', payload: { message: "Oylama hatası sonrası devam ediliyor." } });
-               if(nextTurnLogic && typeof nextTurnLogic === 'function') nextTurnLogic(); else nextTurn(); // Try default next turn
+               if(nextTurnLogic && typeof nextTurnLogic === 'function') nextTurnLogic(); else nextTurn();
            }, 500);
        }
-   }, [gameState.votingInfo, gameState.players, gameState.selectedPlayerForTask, dispatch, triggerFeedback, unlockAchievement, updateStat, drawNewBlueCardForPlayer, nextTurn]); // nextTurn eklendi
+   }, [gameState.votingInfo, gameState.players, gameState.selectedPlayerForTask, dispatch, triggerFeedback, unlockAchievement, updateStat, drawNewBlueCardForPlayer, nextTurn]);
 
-   // startVoting'i tanımla
    const startVoting = useCallback((taskInfo, performerId, nextTurnLogic) => {
        try {
             dispatch({ type: 'START_VOTING', payload: { taskInfo, performerId, nextTurnLogic } });
@@ -185,26 +154,25 @@ export const GameProvider = ({ children }) => {
        } catch(e) { logError('startVoting Action', e); }
    }, [dispatch, triggerFeedback]);
 
-    // handleTaskCompletion'ı tanımla
     const handleTaskCompletion = useCallback((playerId, points, achievementId = null, statKey = null, isVotable = false, taskInfo = null, nextTurnLogic = () => nextTurn()) => {
        try {
            if (isVotable && taskInfo) {
-               startVoting(taskInfo, playerId, nextTurnLogic); // Call startVoting action
+               startVoting(taskInfo, playerId, nextTurnLogic);
            } else {
                dispatch({ type: 'COMPLETE_TASK_DIRECTLY', payload: { playerId, points } });
                triggerFeedback(Haptics.NotificationFeedbackType.Success, 'scorePoint');
                if (achievementId) unlockAchievement(achievementId);
                if (statKey) updateStat(statKey, 1, playerId);
                updateStat('totalScoreAccumulated', points);
-               const player = gameState.players.find(p => p.id === playerId); // Read potentially stale state
+               const player = gameState.players.find(p => p.id === playerId); // Eski state okunabilir
                if(player && (player.score + points) >= 30) unlockAchievement('high_scorer');
                setTimeout(nextTurnLogic, 1500);
            }
        } catch (error) {
             logError('handleTaskCompletion Action Logic', error);
-            setTimeout(nextTurnLogic, 500); // Attempt recovery
+            setTimeout(nextTurnLogic, 500);
        }
-   }, [dispatch, unlockAchievement, updateStat, triggerFeedback, gameState.players, startVoting, nextTurn]); // startVoting, nextTurn dependencies
+   }, [dispatch, unlockAchievement, updateStat, triggerFeedback, gameState.players, startVoting, nextTurn]);
 
    // --- Diğer Aksiyonlar ---
    const setupGame = useCallback((playerNames, customTasks = []) => {
@@ -212,11 +180,12 @@ export const GameProvider = ({ children }) => {
            dispatch({ type: 'SETUP_GAME', payload: { playerNames, customTasks } });
            triggerFeedback(null, 'buttonClick');
            if (customTasks.length > 0) {
-                unlockAchievement('custom_task_added'); // Trigger achievement check
+                unlockAchievement('custom_task_added');
            }
-           setCustomTasksInput(customTasks); // Update local state if needed
+           // setCustomTasksInput(customTasks); // KALDIRILDI
        } catch(e) { logError('setupGame Action', e); }
-   }, [dispatch, triggerFeedback, unlockAchievement, setCustomTasksInput]);
+    // }, [dispatch, triggerFeedback, unlockAchievement, setCustomTasksInput]); // KALDIRILDI setCustomTasksInput bağımlılığı
+    }, [dispatch, triggerFeedback, unlockAchievement]); // DÜZELTİLDİ bağımlılıklar
 
    const showInitialBlueCard = useCallback(() => {
        try {
@@ -252,29 +221,25 @@ export const GameProvider = ({ children }) => {
    const confirmCloseNewBlueCard = useCallback(() => { try { const delegatorIndex = gameState.currentPlayerIndex; dispatch({ type: 'CONFIRM_CLOSE_NEW_BLUE_CARD' }); triggerFeedback(Haptics.NotificationFeedbackType.Success, 'buttonClick'); setTimeout(() => dispatch({ type: 'PASS_TURN', payload: { playerIndex: delegatorIndex } }), 500); } catch(e) { logError('confirmCloseNewBlueCard Action', e); } }, [gameState.currentPlayerIndex, dispatch, triggerFeedback]);
    const castVote = useCallback((voterId, vote) => { try { const currentVotingInfo = gameState.votingInfo; if (!currentVotingInfo || currentVotingInfo.votes[voterId] !== null) { triggerFeedback(Haptics.NotificationFeedbackType.Error, 'error'); return; } triggerFeedback(Haptics.ImpactFeedbackStyle.Light, 'buttonClick'); dispatch({ type: 'CAST_VOTE', payload: { voterId, vote } }); const newVotes = { ...currentVotingInfo.votes, [voterId]: vote }; const allVoted = Object.values(newVotes).every(v => v !== null); if(allVoted){ const nextTurnLogicVote = currentVotingInfo.nextTurnLogic; setTimeout(() => { processVotingResults(newVotes, nextTurnLogicVote); }, 1000); } } catch(e) { logError('castVote Action', e); } }, [gameState.votingInfo, dispatch, triggerFeedback, processVotingResults]);
    const assignAndFinishBlackCard = useCallback(() => { try { const loserId = gameState.selectedPlayerForTask; if (loserId !== null) { updateStat('blackCardsDrawn', 1, loserId); unlockAchievement('black_card_victim'); } const blackDeckWasNotEmpty = gameState.blackDeck.length > 0; dispatch({ type: 'ASSIGN_BLACK_CARD' }); triggerFeedback(Haptics.NotificationFeedbackType.Warning, blackDeckWasNotEmpty ? 'cardDraw' : 'gameEnd'); } catch(e) { logError('assignAndFinishBlackCard Action', e); } }, [gameState.selectedPlayerForTask, gameState.blackDeck, dispatch, updateStat, unlockAchievement, triggerFeedback]);
-   const restartGame = useCallback(() => { try { dispatch({ type: 'RESTART_GAME' }); setCustomTasksInput([]); triggerFeedback(null, 'buttonClick'); } catch(e) { logError('restartGame Action', e); } }, [dispatch, setCustomTasksInput, triggerFeedback]);
-   const restartWithSamePlayers = useCallback(() => { try { if (!gameState.players || gameState.players.length === 0) { restartGame(); return; } dispatch({ type: 'REPLAY_GAME' }); setCustomTasksInput([]); triggerFeedback(Haptics.NotificationFeedbackType.Success, 'buttonClick'); } catch(e) { logError('restartWithSamePlayers Action', e); } }, [gameState.players, dispatch, restartGame, setCustomTasksInput, triggerFeedback]);
+   const restartGame = useCallback(() => { try { dispatch({ type: 'RESTART_GAME' }); /*setCustomTasksInput([]); */ triggerFeedback(null, 'buttonClick'); } catch(e) { logError('restartGame Action', e); } }, [dispatch, /*setCustomTasksInput,*/ triggerFeedback]); // Bağımlılık güncellendi
+   const restartWithSamePlayers = useCallback(() => { try { if (!gameState.players || gameState.players.length === 0) { restartGame(); return; } dispatch({ type: 'REPLAY_GAME' }); /*setCustomTasksInput([]); */ triggerFeedback(Haptics.NotificationFeedbackType.Success, 'buttonClick'); } catch(e) { logError('restartWithSamePlayers Action', e); } }, [gameState.players, dispatch, restartGame, /*setCustomTasksInput,*/ triggerFeedback]); // Bağımlılık güncellendi
    const cancelPlayerSelection = useCallback(() => { try { configureAnimation(); dispatch({ type: 'CANCEL_SELECTION_RETURN_TO_DECISION' }); triggerFeedback(null, 'buttonClick'); } catch(e) { logError('cancelPlayerSelection Action', e); } }, [dispatch, triggerFeedback]);
 
 
    // --- useEffect for End Game Check ---
    useEffect(() => {
-    // Sadece oyunun aktif olarak oynandığı veya karar verildiği fazlarda kontrol et
     if (gameState.gamePhase === 'playing' || gameState.gamePhase === 'decision' || gameState.gamePhase === 'redCardForSelected') {
         const winner = gameState.players.find(p => p.score >= 20);
         if (winner) {
-             // Dispatch END_GAME_CHECK, reducer fazı 'ending' yapacak
               console.log("Winner detected in useEffect, dispatching END_GAME_CHECK");
               dispatch({ type: 'END_GAME_CHECK' });
         }
     }
-    // Eğer faz 'ending' olduysa, endGame aksiyonunu tetikle
     if (gameState.gamePhase === 'ending') {
        console.log("Detected 'ending' phase, calling endGame action");
-       endGame(); // endGame fonksiyonunu çağır (TRIGGER_END_GAME dispatch eder)
+       endGame();
     }
-    // Not: endGame fonksiyonu içinde tekrar endGame'i çağırmadığımızdan emin olmalıyız.
-}, [gameState.players, gameState.gamePhase, dispatch, endGame]); // endGame dependency
+}, [gameState.players, gameState.gamePhase, dispatch, endGame]);
 
 
  // --- useEffect for Achievement Notifications ---
@@ -284,21 +249,20 @@ export const GameProvider = ({ children }) => {
        const details = getAchievementDetails(achievementId);
        const timer = setTimeout(() => {
            alert(`Başarım Açıldı!\n🏆 ${details?.name || achievementId}\n${details?.description || ''}`);
-           markAchievementNotified(achievementId); // Bildirildi aksiyonunu çağır
+           markAchievementNotified(achievementId);
        }, 300);
        return () => clearTimeout(timer);
    }
-}, [gameState.pendingAchievementNotifications, markAchievementNotified]); // Bağımlılıklar
+}, [gameState.pendingAchievementNotifications, markAchievementNotified]);
 
    // --- Context Değeri ---
-   // Aksiyonları bir objede topla
    const actions = useMemo(() => ({
        setupGame, showInitialBlueCard, hideInitialBlueCardAndProceed, drawRedCardForTurn,
        iWillDoIt, delegateTaskStart, selectPlayerForTask, delegatorDidBlueTask,
        selectedPlayerDidRedTask, confirmCloseNewBlueCard, castVote, assignAndFinishBlackCard,
        restartGame, restartWithSamePlayers, unlockAchievement, markAchievementNotified,
        cancelPlayerSelection,
-   }), [ // List all memoized action functions
+   }), [ // Tüm memoize edilmiş eylem fonksiyonlarını listele
        setupGame, showInitialBlueCard, hideInitialBlueCardAndProceed, drawRedCardForTurn,
        iWillDoIt, delegateTaskStart, selectPlayerForTask, delegatorDidBlueTask,
        selectedPlayerDidRedTask, confirmCloseNewBlueCard, castVote, assignAndFinishBlackCard,
@@ -309,9 +273,10 @@ export const GameProvider = ({ children }) => {
    const contextValue = useMemo(() => ({
        gameState,
        actions,
-       customTasksInput, // Setup ekranı için state
-       setCustomTasksInput // Setup ekranı için state setter'ı
-   }), [gameState, actions, customTasksInput, setCustomTasksInput]);
+       // customTasksInput, // KALDIRILDI
+       // setCustomTasksInput // KALDIRILDI
+    // }), [gameState, actions, customTasksInput, setCustomTasksInput]); // KALDIRILDI bağımlılıklar
+    }), [gameState, actions]); // DÜZELTİLDİ bağımlılıklar
 
 
    return (
@@ -321,9 +286,6 @@ export const GameProvider = ({ children }) => {
    );
 };
 
-// --- Custom Hook ---
-export const useGame = () => {
-   const context = useContext(GameContext);
-   if (context === null) { throw new Error('useGame must be used within a GameProvider'); }
-   return context;
-};
+// --- Custom Hook (useGame aşağıda tanımlı veya useGame.js'den import edildi) ---
+// Hook tanımını kendi dosyasında (useGame.js) tutmak daha iyi bir pratiktir.
+// export const useGame = () => { ... };

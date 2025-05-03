@@ -16,9 +16,7 @@ import { Ionicons } from '@expo/vector-icons'; // İkon için (opsiyonel)
 import { MotiView, MotiText, AnimatePresence } from 'moti'; // Animasyon için Moti
 
 // --- Animated Score Component ---
-// Skor değiştiğinde animasyonla güncellenir
 const AnimatedScore = ({ score }) => {
-    // Moti, score prop'u değiştiğinde animasyonu otomatik olarak yönetir
     return (
         <MotiText
             style={styles.scorePoints} // Temel stil (fontFamily dahil)
@@ -32,9 +30,8 @@ const AnimatedScore = ({ score }) => {
     );
 };
 
-// Scoreboard Componenti (AnimatedScore Kullanıldı)
+// Scoreboard Componenti
 const Scoreboard = ({ players, currentPlayerId }) => (
-    // Skor tablosunun potansiyel animasyonları için MotiView
     <MotiView style={styles.scoreboardContainer}>
          <View style={styles.scoreboard}>
              {players.map(player => {
@@ -128,7 +125,7 @@ const GameScreen = ({ navigation }) => {
             backHandler.remove();
             unsubscribe();
         }
-      }, [navigation, gamePhase]); // navigation ve gamePhase bağımlılıkları
+      }, [navigation, gamePhase, gameState.gamePhase]); // navigation, gamePhase ve gameState.gamePhase bağımlılıkları
 
 
     // --- Oyuncu Bilgileri ---
@@ -141,9 +138,21 @@ const GameScreen = ({ navigation }) => {
     // Oyuncular yüklenmediyse veya beklenmedik bir durum varsa yükleme/hata ekranı göster
     if (!players || players.length === 0 ) {
          if(gamePhase !== 'setup') {
-             return ( <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexCenter}><ActivityIndicator size={Platform.OS === 'ios' ? 'large' : 50} color={COLORS.negative} /><Text style={[styles.loadingText, {color: COLORS.textSecondary}]}>Oyuncu Verisi Yüklenemedi!</Text></LinearGradient> );
+             return (
+                 <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexCenter}>
+                     {/* ---- DÜZELTME: size prop'u sayı olarak verildi ---- */}
+                     <ActivityIndicator size={50} color={COLORS.negative} />
+                     <Text style={[styles.loadingText, {color: COLORS.textSecondary}]}>Oyuncu Verisi Yüklenemedi!</Text>
+                 </LinearGradient>
+             );
          }
-         return ( <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexCenter}><ActivityIndicator size={Platform.OS === 'ios' ? 'large' : 50} color={COLORS.accent} /><Text style={[styles.loadingText, {color: COLORS.textSecondary}]}>Oyun Kuruluyor...</Text></LinearGradient> );
+         return (
+             <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexCenter}>
+                  {/* ---- DÜZELTME: size prop'u sayı olarak verildi ---- */}
+                 <ActivityIndicator size={50} color={COLORS.accent} />
+                 <Text style={[styles.loadingText, {color: COLORS.textSecondary}]}>Oyun Kuruluyor...</Text>
+             </LinearGradient>
+         );
         }
     // Aktif oyuncu indeksi geçerli mi kontrolü
     const isPlayerError = (
@@ -151,7 +160,13 @@ const GameScreen = ({ navigation }) => {
         (gamePhase !== 'initialBlueCardReveal' && gamePhase !== 'setup' && !players[currentPlayerIndex])
     );
     if (isPlayerError) {
-        return ( <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexCenter}><ActivityIndicator size={Platform.OS === 'ios' ? 'large' : 50} color={COLORS.negative} /><Text style={[styles.loadingText, {color: COLORS.textSecondary}]}>Oyuncu bilgisi hatası!</Text></LinearGradient> );
+        return (
+            <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexCenter}>
+                 {/* ---- DÜZELTME: size prop'u sayı olarak verildi ---- */}
+                <ActivityIndicator size={50} color={COLORS.negative} />
+                <Text style={[styles.loadingText, {color: COLORS.textSecondary}]}>Oyuncu bilgisi hatası!</Text>
+            </LinearGradient>
+        );
      }
     // --- Yükleniyor / Hata Kontrolleri Sonu ---
 
@@ -320,7 +335,7 @@ const GameScreen = ({ navigation }) => {
     );
 };
 
-// --- Stiller (Önceki yanıttaki güncel halleri) ---
+// --- Stiller (Önceki yanıttaki güncel halleri ile aynı) ---
 const styles = StyleSheet.create({
     flexFill: { flex: 1 },
     flexCenter: { flex: 1, alignItems: 'center', justifyContent: 'center'},
