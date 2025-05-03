@@ -1,8 +1,9 @@
-// --- START OF FILE components/Card.js (Clean, Simple) ---
+// --- START OF FILE components/Card.js (No Animations) ---
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, useWindowDimensions, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SIZES } from '../constants/theme';
+import { Ionicons } from '@expo/vector-icons'; // Keep for back pattern
 
 // --- THEMES ---
 const CARD_THEME = {
@@ -14,11 +15,11 @@ const CARD_THEME = {
 };
 
 // --- SIZING ---
-const CARD_WIDTH_PERCENTAGE = 0.75;
-export const CARD_MAX_WIDTH = SIZES.cardMaxWidth;
+const CARD_WIDTH_PERCENTAGE = 0.78;
+export const CARD_MAX_WIDTH = SIZES.cardMaxWidth * 1.05;
 export const CARD_ASPECT_RATIO = 1.5;
 
-// --- CARD COMPONENT (Simplified) ---
+// --- CARD COMPONENT (No Animations) ---
 const Card = ({ type = 'kapalı', text = '', isVisible = false, style }) => {
     const { width: windowWidth } = useWindowDimensions();
 
@@ -29,6 +30,7 @@ const Card = ({ type = 'kapalı', text = '', isVisible = false, style }) => {
         if (effType === 'kırmızı' && safeText.startsWith("ÖZEL:")) { effType = 'custom'; }
         else if (!CARD_THEME[effType]) { effType = 'kapalı'; }
         const thm = CARD_THEME[effType] || CARD_THEME.kapalı;
+        // Determine if the front face should be shown based on visibility and type
         const show = isVisible && effType !== 'kapalı';
         return { effectiveType: effType, theme: thm, showFront: show };
     }, [type, text, isVisible]);
@@ -39,7 +41,7 @@ const Card = ({ type = 'kapalı', text = '', isVisible = false, style }) => {
         return { dynamicCardWidth: width, dynamicCardHeight: height };
     }, [windowWidth]);
 
-    // If not visible, render nothing to avoid layout shifts or opacity issues
+    // If not visible, render nothing
     if (!isVisible) {
         return null;
     }
@@ -70,6 +72,9 @@ const Card = ({ type = 'kapalı', text = '', isVisible = false, style }) => {
                 ) : (
                     // Back Content
                     <>
+                        <View style={styles.backPattern}>
+                            <Ionicons name="layers-outline" size={dynamicCardWidth * 0.4} color="rgba(255, 255, 255, 0.05)" />
+                        </View>
                         <Text style={[styles.closedCardText, { color: displayTheme.text }]}>🃏</Text>
                         <Text style={styles.closedCardBrand}>Kart Oyunu</Text>
                     </>
@@ -89,8 +94,6 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
         elevation: 7,
         borderRadius: SIZES.cardRadius,
-        // Add a fallback background color in case gradient fails? Optional.
-        // backgroundColor: CARD_THEME.kapalı.bg[1],
     },
     cardInnerContainer: {
         flex: 1,
@@ -113,6 +116,7 @@ const styles = StyleSheet.create({
         fontSize: SIZES.width * 0.15,
         fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif',
         opacity: 0.9,
+        zIndex: 2, // Ensure emoji is above pattern
     },
     closedCardBrand: {
         position: 'absolute',
@@ -121,6 +125,15 @@ const styles = StyleSheet.create({
         fontFamily: SIZES.bold,
         color: 'rgba(255, 255, 255, 0.6)',
         letterSpacing: 0.5,
+        zIndex: 2,
+    },
+    backPattern: {
+        position: 'absolute',
+        top: 0, left: 0, right: 0, bottom: 0,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: 0.6,
+        zIndex: 1,
     },
 });
 
