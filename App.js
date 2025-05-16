@@ -44,20 +44,22 @@ const globalErrorHandler = (error, isFatal) => {
 
 // Global handler'ı yalnızca production modunda ekle (dev araçlarıyla çakışmaması için)
 // Bu kısım geçici olarak devre dışı bırakılabilir, gerekirse açılır.
-/*
 if (!__DEV__) {
-    const ErrorUtils = global.ErrorUtils;
-    if (ErrorUtils) {
+    const ErrorUtils = global.ErrorUtils; // In Expo, ErrorUtils might be under expo-modules-core or directly available
+    if (ErrorUtils && typeof ErrorUtils.setGlobalHandler === 'function') {
        ErrorUtils.setGlobalHandler(globalErrorHandler);
        console.log("Global Error Handler set for Production.");
-   } else {
-       console.warn("ErrorUtils not available to set global handler.");
-   }
+    } else {
+       // Fallback for older React Native versions or environments where ErrorUtils might not be directly on global
+       // or might have a different structure.
+       // For Expo SDK 49+, `expo-modules-core`'s `NativeErrorManager` is usually responsible.
+       // However, `ErrorUtils.setGlobalHandler` is the traditional way.
+       // If it's critical and not working, an alternative is to use a library like `react-native-exception-handler`.
+       console.warn("ErrorUtils.setGlobalHandler is not available. Global errors might not be caught. Consider using a dedicated library if this persists.");
+    }
 } else {
-    console.log("Running in DEV mode, skipping global error handler setup.");
+    console.log("Running in DEV mode, global error handler is disabled.");
 }
-*/
-console.log("Global Error Handler setup currently skipped/disabled."); // Geçici log
 
 // --- Navigation Stack ---
 const Stack = createStackNavigator();

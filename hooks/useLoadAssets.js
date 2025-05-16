@@ -20,6 +20,7 @@ export const useLoadAssets = () => {
         await Font.loadAsync({
           // Replace with your actual font names and files
           'Oswald-Regular': require('../assets/fonts/Oswald-Regular.ttf'),
+          'Oswald-Bold': require('../assets/fonts/Oswald-Bold.ttf'),
           // Load icon fonts if you use them directly
           ...Ionicons.font,
         });

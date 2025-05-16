@@ -2,7 +2,7 @@
 import React, { useEffect, useCallback, useMemo } from 'react';
 import {
     View, Text, StyleSheet, ActivityIndicator, Platform, StatusBar, TouchableOpacity,
-    BackHandler, Alert, useWindowDimensions, ScrollView
+    BackHandler, Alert, useWindowDimensions, ScrollView, Animated
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useGame } from '../context/useGame';
@@ -11,6 +11,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, SIZES } from '../constants/theme';
 import ActionButton from '../components/ActionButton';
 import { Ionicons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 // Removed Moti/AnimatePresence imports
 
 // --- Scoreboard (No Animations) ---
@@ -186,7 +187,12 @@ const GameScreen = ({ navigation }) => {
     const showActionButtons = !['voting', 'selectingPlayer', 'ended', 'assigningBlackCard'].includes(gamePhase);
 
     return (
-        <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexFill}>
+        <LinearGradient 
+            colors={['#1e293b', '#0f172a']} 
+            start={{x: 0, y: 0}} 
+            end={{x: 1, y: 1}}
+            style={styles.flexFill}>
+            <StatusBar barStyle="light-content" />
              <View style={styles.container}>
                  {/* --- Top Area --- */}
                  <View style={styles.topArea}>
@@ -211,7 +217,10 @@ const GameScreen = ({ navigation }) => {
                                     text={cardDisplayData.text}
                                     isVisible={cardDisplayData.isVisible}
                                     key={cardDisplayData.cardKey}
-                                    style={{ width: responsiveCardWidth, height: responsiveCardHeight }}
+                                    style={[
+                                        { width: responsiveCardWidth, height: responsiveCardHeight },
+                                        styles.enhancedCard
+                                    ]}
                                 />
                             </View>
                         )}
@@ -242,56 +251,400 @@ const GameScreen = ({ navigation }) => {
 
 // --- STYLES (Simplified Layout) ---
 const styles = StyleSheet.create({
-    flexFill: { flex: 1 },
-    flexCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: SIZES.padding },
-    container: { flex: 1, paddingTop: Platform.OS === 'android' ? Constants.statusBarHeight : SIZES.paddingMedium },
-    loadingText: { marginTop: SIZES.margin, fontSize: SIZES.body, color: COLORS.textSecondary, fontFamily: SIZES.regular, textAlign: 'center' },
-    topArea: { paddingHorizontal: SIZES.paddingSmall, paddingBottom: SIZES.paddingSmall },
-    middleArea: { flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: SIZES.padding, paddingVertical: SIZES.paddingSmall, width: '100%' },
-    bottomArea: { paddingBottom: SIZES.paddingLarge, paddingHorizontal: SIZES.padding, alignSelf: 'center', width: '100%', paddingTop: SIZES.paddingSmall },
-    lastActionContainer: { minHeight: 30, justifyContent: 'center', alignItems: 'center', marginBottom: SIZES.base, width: '100%' },
-    lastActionText: { fontSize: SIZES.body * 0.95, fontWeight: '600', color: COLORS.accentLight, textAlign: 'center', fontFamily: SIZES.regular, paddingHorizontal: SIZES.padding },
-    lastActionPlaceholder: { height: 30 },
-    mainContentStage: { flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center', marginVertical: SIZES.marginSmall },
-    cardDisplayArea: { width: '100%', alignItems: 'center', justifyContent: 'center' },
-    messageContainer: { width: '100%', justifyContent: 'center', alignItems: 'center', paddingVertical: SIZES.paddingSmall, minHeight: 70, marginTop: SIZES.marginSmall },
-    messageText: { fontSize: SIZES.body * 1.15, textAlign: 'center', color: COLORS.textPrimary, lineHeight: SIZES.body * 1.7, fontFamily: SIZES.regular, paddingHorizontal: SIZES.base },
-    actionButtonsContainer: { width: '100%', alignItems: 'center' },
-    scoreboardContainer: { marginBottom: SIZES.marginSmall },
-    scoreboardContent: { paddingHorizontal: SIZES.paddingSmall, paddingVertical: SIZES.paddingSmall * 0.5, alignItems: 'flex-end' },
-    scoreColumn: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: SIZES.padding, paddingVertical: SIZES.paddingSmall, borderRadius: SIZES.inputRadius, minWidth: 80, marginRight: SIZES.base, position: 'relative', minHeight: 90, borderWidth: 1, borderColor: 'transparent' },
-    activePlayerColumn: { borderColor: COLORS.activePlayerHighlight, backgroundColor: COLORS.activePlayerBg, transform: [{ scale: 1.03 }], shadowColor: COLORS.activePlayerHighlight, shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.5, shadowRadius: 4, elevation: 5 },
-    turnIndicatorIconWrapper: { position: 'absolute', top: -SIZES.iconSizeSmall * 0.4, left: 0, right: 0, alignItems: 'center' },
-    avatarTextScoreboard: { fontSize: SIZES.h4, marginBottom: SIZES.base * 0.5 },
-    scoreText: { fontSize: SIZES.caption, color: COLORS.textSecondary, fontFamily: SIZES.regular, marginBottom: SIZES.base * 0.5, textAlign: 'center' },
-    activePlayerText: { color: COLORS.activePlayerText, fontFamily: SIZES.bold },
-    scorePoints: { fontSize: SIZES.title, color: COLORS.textPrimary, fontFamily: SIZES.bold, textAlign: 'center', marginTop: 'auto' },
-    sectionTitle: { fontSize: SIZES.h3, fontFamily: SIZES.bold, color: COLORS.textPrimary, marginBottom: SIZES.margin, textAlign: 'center' },
-    votingOuterContainer: { flex: 1, width: '100%', maxWidth: SIZES.contentMaxWidth * 0.95, padding: SIZES.padding, justifyContent: 'space-around', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: SIZES.cardRadius, borderWidth: 1, borderColor: COLORS.warningLight },
-    votingInfoText: { fontSize: SIZES.body, fontFamily: SIZES.regular, color: COLORS.textSecondary, textAlign: 'center', marginBottom: SIZES.base, lineHeight: SIZES.lineHeightBase },
-    boldText: { fontFamily: SIZES.bold, color: COLORS.textPrimary },
-    italicText: { fontStyle: 'italic' },
-    votingScroll: { width: '100%', flexGrow: 0, flexShrink: 1, maxHeight: '60%', marginBottom: SIZES.margin },
-    votingList: { paddingBottom: SIZES.padding },
-    voterRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: SIZES.margin * 1.2, paddingHorizontal: SIZES.paddingSmall },
-    voterName: { fontSize: SIZES.body, color: COLORS.textPrimary, fontFamily: SIZES.regular, flex: 1, marginRight: SIZES.base },
-    voterAvatar: { fontSize: SIZES.body * 1.1, marginRight: SIZES.marginSmall },
-    voteButtons: { flexDirection: 'row' },
-    voteButtonBase: { paddingVertical: SIZES.padding, paddingHorizontal: SIZES.paddingMedium, borderRadius: SIZES.buttonRadius * 2, marginHorizontal: SIZES.base, alignItems: 'center', justifyContent: 'center', shadowColor: "#000", shadowOffset: { width: 0, height: 3 }, shadowOpacity: 0.4, shadowRadius: 4, elevation: 5, minWidth: 70, minHeight: 60 },
-    voteYes: { backgroundColor: COLORS.positive },
-    voteNo: { backgroundColor: COLORS.negative },
-    voteDisabled: { opacity: 0.4, backgroundColor: COLORS.textMuted },
-    voteCastIcon: { /* Style for the check/close icon if needed */ },
-    // voteCastAnimProps removed
-    votingStatusText: { fontSize: SIZES.caption, color: COLORS.textMuted, textAlign: 'center', marginTop: SIZES.marginSmall, fontStyle: 'italic' },
-    playerSelectionOuterContainer: { flex: 1, width: '100%', maxWidth: SIZES.contentMaxWidth * 0.95, justifyContent: 'space-between', padding: SIZES.padding, backgroundColor: 'rgba(0,0,0,0.25)', borderRadius: SIZES.cardRadius, borderWidth: 1, borderColor: COLORS.accent },
-    playerSelectionScroll: { flexGrow: 0, flexShrink: 1, width: '100%', marginVertical: SIZES.marginSmall },
-    playerSelectCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255, 255, 255, 0.08)', paddingVertical: SIZES.paddingMedium, paddingHorizontal: SIZES.padding, borderRadius: SIZES.inputRadius, marginBottom: SIZES.margin, borderWidth: 1.5, borderColor: 'rgba(255, 255, 255, 0.2)' },
-    playerSelectAvatar: { fontSize: SIZES.h3, marginRight: SIZES.marginMedium },
-    playerSelectName: { flex: 1, fontSize: SIZES.body * 1.1, fontFamily: SIZES.bold, color: COLORS.textPrimary },
-    cancelButton: { marginTop: SIZES.margin, width: '100%' },
-    warningText: { fontSize: SIZES.caption, color: COLORS.warningLight, textAlign: 'center', marginTop: SIZES.base, fontFamily: SIZES.regular, lineHeight: SIZES.lineHeightBase * 0.9 },
-    spacerTop: { marginTop: SIZES.marginSmall },
+    flexFill: { 
+        flex: 1 
+    },
+    flexCenter: { 
+        flex: 1, 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        padding: SIZES.padding 
+    },
+    container: { 
+        flex: 1, 
+        paddingTop: Platform.OS === 'android' ? Constants.statusBarHeight : SIZES.paddingMedium 
+    },
+    loadingText: { 
+        marginTop: SIZES.margin, 
+        fontSize: SIZES.body, 
+        color: COLORS.textSecondary, 
+        fontFamily: SIZES.regular, 
+        textAlign: 'center' 
+    },
+    topArea: { 
+        paddingHorizontal: SIZES.paddingSmall, 
+        paddingBottom: SIZES.paddingSmall,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(255,255,255,0.1)',
+        paddingTop: SIZES.paddingSmall
+    },
+    middleArea: { 
+        flex: 1, 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        paddingHorizontal: SIZES.padding, 
+        paddingVertical: SIZES.paddingSmall, 
+        width: '100%' 
+    },
+    bottomArea: { 
+        paddingBottom: SIZES.paddingLarge, 
+        paddingHorizontal: SIZES.padding, 
+        alignSelf: 'center', 
+        width: '100%', 
+        paddingTop: SIZES.paddingSmall,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: 'rgba(0,0,0,0.2)'
+    },
+    lastActionContainer: { 
+        minHeight: 40, 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        marginBottom: SIZES.base, 
+        width: '100%',
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        borderRadius: SIZES.inputRadius,
+        paddingHorizontal: SIZES.padding,
+        paddingVertical: SIZES.paddingSmall
+    },
+    lastActionText: { 
+        fontSize: SIZES.body * 0.95, 
+        fontWeight: '600', 
+        color: COLORS.accentLight, 
+        textAlign: 'center', 
+        fontFamily: SIZES.regular, 
+        paddingHorizontal: SIZES.padding,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 2
+    },
+    lastActionPlaceholder: { 
+        height: 30 
+    },
+    mainContentStage: { 
+        flex: 1, 
+        width: '100%', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        marginVertical: SIZES.marginSmall 
+    },
+    cardDisplayArea: { 
+        width: '100%', 
+        alignItems: 'center', 
+        justifyContent: 'center' 
+    },
+    enhancedCard: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.5,
+        shadowRadius: 15,
+        elevation: 20
+    },
+    messageContainer: { 
+        width: '100%', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        paddingVertical: SIZES.paddingMedium, 
+        minHeight: 80, 
+        marginTop: SIZES.marginSmall,
+        backgroundColor: 'rgba(0,0,0,0.25)',
+        borderRadius: SIZES.cardRadius,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.1)'
+    },
+    messageText: { 
+        fontSize: SIZES.body * 1.15, 
+        textAlign: 'center', 
+        color: COLORS.textPrimary, 
+        lineHeight: SIZES.body * 1.7, 
+        fontFamily: SIZES.regular, 
+        paddingHorizontal: SIZES.padding,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 3
+    },
+    actionButtonsContainer: { 
+        width: '100%', 
+        alignItems: 'center',
+        paddingTop: SIZES.padding
+    },
+    scoreboardContainer: { 
+        marginBottom: SIZES.marginSmall, 
+        borderRadius: SIZES.cardRadius,
+        backgroundColor: 'rgba(0,0,0,0.2)',
+        paddingVertical: SIZES.paddingSmall
+    },
+    scoreboardContent: { 
+        paddingHorizontal: SIZES.paddingSmall, 
+        paddingVertical: SIZES.paddingSmall * 0.5, 
+        alignItems: 'flex-end' 
+    },
+    scoreColumn: { 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        paddingHorizontal: SIZES.padding, 
+        paddingVertical: SIZES.paddingSmall, 
+        borderRadius: SIZES.inputRadius, 
+        minWidth: 80, 
+        marginRight: SIZES.base, 
+        position: 'relative', 
+        minHeight: 90, 
+        borderWidth: 1, 
+        borderColor: 'rgba(255,255,255,0.1)',
+        backgroundColor: 'rgba(0,0,0,0.3)',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 3
+    },
+    activePlayerColumn: { 
+        borderColor: COLORS.activePlayerHighlight, 
+        backgroundColor: 'rgba(66, 153, 225, 0.3)', 
+        transform: [{ scale: 1.03 }], 
+        shadowColor: COLORS.activePlayerHighlight, 
+        shadowOffset: { width: 0, height: 2 }, 
+        shadowOpacity: 0.5, 
+        shadowRadius: 4, 
+        elevation: 5 
+    },
+    turnIndicatorIconWrapper: { 
+        position: 'absolute', 
+        top: -SIZES.iconSizeSmall * 0.4, 
+        left: 0, right: 0, 
+        alignItems: 'center',
+        shadowColor: COLORS.activePlayerHighlight,
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.8,
+        shadowRadius: 3
+    },
+    avatarTextScoreboard: { 
+        fontSize: SIZES.h4, 
+        marginBottom: SIZES.base * 0.5,
+        textShadowColor: 'rgba(0,0,0,0.8)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 3
+    },
+    scoreText: { 
+        fontSize: SIZES.caption, 
+        color: COLORS.textSecondary, 
+        fontFamily: SIZES.regular, 
+        marginBottom: SIZES.base * 0.5, 
+        textAlign: 'center' 
+    },
+    activePlayerText: { 
+        color: COLORS.activePlayerText, 
+        fontFamily: SIZES.bold,
+        textShadowColor: 'rgba(0,0,0,0.8)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 2
+    },
+    scorePoints: { 
+        fontSize: SIZES.title, 
+        color: COLORS.textPrimary, 
+        fontFamily: SIZES.bold, 
+        textAlign: 'center', 
+        marginTop: 'auto',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 3
+    },
+    sectionTitle: { 
+        fontSize: SIZES.h3, 
+        fontFamily: SIZES.bold, 
+        color: COLORS.textPrimary, 
+        marginBottom: SIZES.margin, 
+        textAlign: 'center',
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 2
+    },
+    votingOuterContainer: { 
+        flex: 1, 
+        width: '100%', 
+        maxWidth: SIZES.contentMaxWidth * 0.95, 
+        padding: SIZES.padding, 
+        justifyContent: 'space-around', 
+        alignItems: 'center', 
+        backgroundColor: 'rgba(0,0,0,0.4)', 
+        borderRadius: SIZES.cardRadius, 
+        borderWidth: 1, 
+        borderColor: COLORS.warningLight,
+        shadowColor: COLORS.warning,
+        shadowOffset: {width: 0, height: 8},
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10
+    },
+    votingInfoText: { 
+        fontSize: SIZES.body, 
+        fontFamily: SIZES.regular, 
+        color: COLORS.textSecondary, 
+        textAlign: 'center', 
+        marginBottom: SIZES.base, 
+        lineHeight: SIZES.lineHeightBase 
+    },
+    boldText: { 
+        fontFamily: SIZES.bold, 
+        color: COLORS.textPrimary 
+    },
+    italicText: { 
+        fontStyle: 'italic' 
+    },
+    votingScroll: { 
+        width: '100%', 
+        flexGrow: 0, 
+        flexShrink: 1, 
+        maxHeight: '60%', 
+        marginBottom: SIZES.margin 
+    },
+    votingList: { 
+        paddingBottom: SIZES.padding 
+    },
+    voterRow: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        justifyContent: 'space-between', 
+        marginBottom: SIZES.margin * 1.2, 
+        paddingHorizontal: SIZES.paddingSmall,
+        backgroundColor: 'rgba(255,255,255,0.05)',
+        borderRadius: SIZES.inputRadius,
+        padding: SIZES.paddingSmall,
+        shadowColor: "#000",
+        shadowOffset: {width: 0, height: 2},
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 2
+    },
+    voterName: { 
+        fontSize: SIZES.body, 
+        color: COLORS.textPrimary, 
+        fontFamily: SIZES.regular, 
+        flex: 1, 
+        marginRight: SIZES.base,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 2
+    },
+    voterAvatar: { 
+        fontSize: SIZES.body * 1.1, 
+        marginRight: SIZES.marginSmall,
+        textShadowColor: 'rgba(0,0,0,0.8)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 3
+    },
+    voteButtons: { 
+        flexDirection: 'row' 
+    },
+    voteButtonBase: { 
+        paddingVertical: SIZES.padding, 
+        paddingHorizontal: SIZES.paddingMedium, 
+        borderRadius: SIZES.buttonRadius * 2, 
+        marginHorizontal: SIZES.base, 
+        alignItems: 'center', 
+        justifyContent: 'center', 
+        shadowColor: "#000", 
+        shadowOffset: { width: 0, height: 3 }, 
+        shadowOpacity: 0.4, 
+        shadowRadius: 4, 
+        elevation: 5, 
+        minWidth: 70, 
+        minHeight: 60 
+    },
+    voteYes: { 
+        backgroundColor: COLORS.positive,
+        borderWidth: 1,
+        borderColor: COLORS.positiveLight
+    },
+    voteNo: { 
+        backgroundColor: COLORS.negative,
+        borderWidth: 1,
+        borderColor: COLORS.negativeLight
+    },
+    voteDisabled: { 
+        opacity: 0.4, 
+        backgroundColor: COLORS.textMuted 
+    },
+    votingStatusText: { 
+        fontSize: SIZES.caption, 
+        color: COLORS.textMuted, 
+        textAlign: 'center', 
+        marginTop: SIZES.marginSmall, 
+        fontStyle: 'italic' 
+    },
+    playerSelectionOuterContainer: { 
+        flex: 1, 
+        width: '100%', 
+        maxWidth: SIZES.contentMaxWidth * 0.95, 
+        justifyContent: 'space-between', 
+        padding: SIZES.padding, 
+        backgroundColor: 'rgba(0,0,0,0.4)', 
+        borderRadius: SIZES.cardRadius, 
+        borderWidth: 1, 
+        borderColor: COLORS.accent,
+        shadowColor: COLORS.accent,
+        shadowOffset: {width: 0, height: 8},
+        shadowOpacity: 0.3,
+        shadowRadius: 10,
+        elevation: 10
+    },
+    playerSelectionScroll: { 
+        flexGrow: 0, 
+        flexShrink: 1, 
+        width: '100%', 
+        marginVertical: SIZES.marginSmall 
+    },
+    playerSelectCard: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        backgroundColor: 'rgba(255, 255, 255, 0.08)', 
+        paddingVertical: SIZES.paddingMedium, 
+        paddingHorizontal: SIZES.padding, 
+        borderRadius: SIZES.inputRadius, 
+        marginBottom: SIZES.margin, 
+        borderWidth: 1.5, 
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        shadowColor: "#000",
+        shadowOffset: {width: 0, height: 4},
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 5
+    },
+    playerSelectAvatar: { 
+        fontSize: SIZES.h3, 
+        marginRight: SIZES.marginMedium,
+        textShadowColor: 'rgba(0,0,0,0.8)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 3
+    },
+    playerSelectName: { 
+        flex: 1, 
+        fontSize: SIZES.body * 1.1, 
+        fontFamily: SIZES.bold, 
+        color: COLORS.textPrimary,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 2
+    },
+    cancelButton: { 
+        marginTop: SIZES.margin, 
+        width: '100%' 
+    },
+    warningText: { 
+        fontSize: SIZES.caption, 
+        color: COLORS.warningLight, 
+        textAlign: 'center', 
+        marginTop: SIZES.base, 
+        fontFamily: SIZES.regular, 
+        lineHeight: SIZES.lineHeightBase * 0.9,
+        textShadowColor: 'rgba(0,0,0,0.5)',
+        textShadowOffset: {width: 1, height: 1},
+        textShadowRadius: 2
+    },
+    spacerTop: { 
+        marginTop: SIZES.marginSmall 
+    },
 });
 
 

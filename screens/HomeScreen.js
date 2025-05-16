@@ -41,20 +41,44 @@ const HomeScreen = ({ navigation }) => {
                     {/* Diğer Butonlar (Grid Yapısı) */}
                     <View style={styles.secondaryButtonsGrid}>
                         {/* Kurallar */}
-                        <TouchableOpacity style={styles.gridButton} onPress={() => navigation.navigate('HowToPlay')}>
-                             <Ionicons name="book-outline" size={SIZES.iconSize * 1.3} color={COLORS.accentLight} />
-                            <Text style={styles.gridButtonText}>Kurallar</Text>
-                         </TouchableOpacity>
+                        <MotiView
+                            style={styles.gridButton}
+                            from={{ opacity: 0, scale: 0.7 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ type: 'timing', duration: 300, delay: 400 }}
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <TouchableOpacity onPress={() => navigation.navigate('HowToPlay')} style={styles.touchableContent}>
+                                <Ionicons name="book-outline" size={SIZES.iconSize * 1.3} color={COLORS.accentLight} />
+                                <Text style={styles.gridButtonText}>Kurallar</Text>
+                            </TouchableOpacity>
+                        </MotiView>
                         {/* Başarımlar */}
-                        <TouchableOpacity style={styles.gridButton} onPress={() => navigation.navigate('Achievements')}>
-                             <Ionicons name="trophy-outline" size={SIZES.iconSize * 1.3} color={COLORS.warningLight} />
-                            <Text style={styles.gridButtonText}>Başarımlar</Text>
-                        </TouchableOpacity>
+                        <MotiView
+                            style={styles.gridButton}
+                            from={{ opacity: 0, scale: 0.7 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ type: 'timing', duration: 300, delay: 500 }} // Staggered delay
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <TouchableOpacity onPress={() => navigation.navigate('Achievements')} style={styles.touchableContent}>
+                                <Ionicons name="trophy-outline" size={SIZES.iconSize * 1.3} color={COLORS.warningLight} />
+                                <Text style={styles.gridButtonText}>Başarımlar</Text>
+                            </TouchableOpacity>
+                        </MotiView>
                         {/* İstatistikler */}
-                        <TouchableOpacity style={styles.gridButton} onPress={() => navigation.navigate('Statistics')}>
-                            <Ionicons name="stats-chart-outline" size={SIZES.iconSize * 1.3} color={COLORS.positiveLight} />
-                            <Text style={styles.gridButtonText}>İstatistikler</Text>
-                        </TouchableOpacity>
+                        <MotiView
+                            style={styles.gridButton}
+                            from={{ opacity: 0, scale: 0.7 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            transition={{ type: 'timing', duration: 300, delay: 600 }} // Staggered delay
+                            whileTap={{ scale: 0.95 }}
+                        >
+                            <TouchableOpacity onPress={() => navigation.navigate('Statistics')} style={styles.touchableContent}>
+                                <Ionicons name="stats-chart-outline" size={SIZES.iconSize * 1.3} color={COLORS.positiveLight} />
+                                <Text style={styles.gridButtonText}>İstatistikler</Text>
+                            </TouchableOpacity>
+                        </MotiView>
                          {/* Ayarlar (Gelecekte)
                          <TouchableOpacity style={styles.gridButton} onPress={() => { alert('Yakında!'); }}>
                              <Ionicons name="settings-outline" size={SIZES.iconSize * 1.3} color={COLORS.textSecondary} />
@@ -129,18 +153,25 @@ const styles = StyleSheet.create({
          justifyContent: 'center',
           backgroundColor: 'rgba(255, 255, 255, 0.08)', // Hafif arka plan
           borderRadius: SIZES.cardRadius, // Yuvarlak köşeler
-          padding: SIZES.paddingMedium,
+         // padding: SIZES.paddingMedium, // Padding will be handled by touchableContent
          width: '45%', // İki sütunlu yapı için yaklaşık genişlik
           aspectRatio: 1.1, // Yaklaşık karemsi görünüm
           marginBottom: SIZES.margin, // Butonlar arası boşluk
           borderWidth: 1,
          borderColor: 'rgba(255, 255, 255, 0.15)',
      },
+     touchableContent: { // New style for the content inside MotiView
+        flex: 1,
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: SIZES.paddingMedium,
+     },
      gridButtonText: {
           marginTop: SIZES.base,
           fontSize: SIZES.caption,
           fontFamily: SIZES.bold,
-          color: COLORS.textSecondary,
+          color: COLORS.textPrimary,
           textAlign: 'center',
       },
      footerText: {

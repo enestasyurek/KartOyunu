@@ -24,8 +24,10 @@ export const COLORS = {
     positiveLight: '#68d391', // Açık Yeşil
     negative: '#f56565', // Hata/Olumsuz (Kırmızı)
     negativeLight: '#fc8181', // Açık Kırmızı
+    negativeDark: '#c53030', // Koyu Kırmızı
     warning: '#ed8936', // Uyarı (Turuncu)
     warningLight: '#f6ad55', // Açık Turuncu
+    warningDark: '#c05621', // Koyu Turuncu
 
     // Bileşen Özel Renkleri
     cardPlaceholderBg: 'rgba(255, 255, 255, 0.06)', // Kapalı Kart Arka Plan
