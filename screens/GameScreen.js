@@ -67,14 +67,44 @@ const GameScreen = ({ navigation }) => {
     // --- Gösterilecek Kart Verisi ---
     const cardDisplayData = useMemo(() => {
         let type = 'kapalı', text = '', isVisible = false, cardKey = 'placeholder';
+        let faceDownContextType = 'red'; // Default to 'red' for the main draw pile in 'playing' phase
+
         const cardAreaVisible = ['initialBlueCardReveal', 'revealingBlueCard', 'showingNewBlueCard', 'decision', 'redCardForSelected', 'playing'].includes(gamePhase);
         if (cardAreaVisible) {
-            if (currentBlueCardInfo?.isVisible && (gamePhase === 'initialBlueCardReveal' || gamePhase === 'revealingBlueCard' || gamePhase === 'showingNewBlueCard')) { type = 'mavi'; text = currentBlueCardInfo.text; isVisible = true; cardKey = `blue-${gamePhase}-${currentBlueCardInfo.forPlayerId}`; }
-            else if (currentRedCard?.isVisible && (gamePhase === 'decision' || gamePhase === 'redCardForSelected')) { type = 'kırmızı'; text = currentRedCard.text; isVisible = true; cardKey = `red-${gamePhase}-${currentRedCard.id || text}`; }
-            else if (gamePhase === 'playing' || (gamePhase === 'initialBlueCardReveal' && !currentBlueCardInfo?.isVisible)) { type = 'kapalı'; text = '?'; isVisible = true; cardKey = `closed-${gamePhase}`; }
-            else { isVisible = false; cardKey = 'fallback-invisible'; }
-        } else { isVisible = false; cardKey = 'no-card-phase-' + gamePhase; }
-        return { type, text: String(text ?? ''), isVisible, cardKey };
+            if (currentBlueCardInfo?.isVisible && (gamePhase === 'initialBlueCardReveal' || gamePhase === 'revealingBlueCard' || gamePhase === 'showingNewBlueCard')) {
+                type = 'mavi'; 
+                text = currentBlueCardInfo.text; 
+                isVisible = true; 
+                cardKey = `blue-${gamePhase}-${currentBlueCardInfo.forPlayerId}`;
+                // faceDownContextType is not relevant here as the card is face up
+            }
+            else if (currentRedCard?.isVisible && (gamePhase === 'decision' || gamePhase === 'redCardForSelected')) {
+                type = 'kırmızı'; 
+                text = currentRedCard.text; 
+                isVisible = true; 
+                cardKey = `red-${gamePhase}-${currentRedCard.id || text}`;
+                // faceDownContextType is not relevant here as the card is face up
+            }
+            else if (gamePhase === 'playing' || (gamePhase === 'initialBlueCardReveal' && !currentBlueCardInfo?.isVisible)) {
+                type = 'kapalı'; // Card is face down
+                text = '?'; 
+                isVisible = true; 
+                cardKey = `closed-${gamePhase}`;
+                if (gamePhase === 'playing') {
+                    faceDownContextType = 'red'; // Main draw pile context is red cards
+                } else if (gamePhase === 'initialBlueCardReveal' && !currentBlueCardInfo?.isVisible) {
+                    // Blue cards are being dealt face down initially
+                    faceDownContextType = 'blue';
+                }
+            } else {
+                isVisible = false; 
+                cardKey = 'fallback-invisible';
+            }
+        } else {
+            isVisible = false; 
+            cardKey = 'no-card-phase-' + gamePhase;
+        }
+        return { type, text: String(text ?? ''), isVisible, cardKey, faceDownContextType };
      }, [currentBlueCardInfo, currentRedCard, gamePhase]);
 
     // --- UI Rendering Callbacks ---
@@ -217,6 +247,7 @@ const GameScreen = ({ navigation }) => {
                                     text={cardDisplayData.text}
                                     isVisible={cardDisplayData.isVisible}
                                     key={cardDisplayData.cardKey}
+                                    faceDownContextType={cardDisplayData.faceDownContextType}
                                     style={[
                                         { width: responsiveCardWidth, height: responsiveCardHeight },
                                         styles.enhancedCard
