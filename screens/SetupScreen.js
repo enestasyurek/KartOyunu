@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
     View, Text, TextInput, StyleSheet, KeyboardAvoidingView,
-    Platform, TouchableWithoutFeedback, Keyboard, StatusBar, ScrollView, TouchableOpacity, Alert
+    Platform, TouchableWithoutFeedback, Keyboard, StatusBar, 
+    ScrollView, TouchableOpacity, Alert, AccessibilityInfo
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useGame } from '../context/useGame';
@@ -10,544 +11,821 @@ import { COLORS, SIZES } from '../constants/theme';
 import ActionButton from '../components/ActionButton';
 import { Ionicons } from '@expo/vector-icons';
 import { MotiView, AnimatePresence } from 'moti';
-import { AVATARS, getRandomAvatar } from '../constants/avatars'; // Avatarları kullanmak için
+import { AVATARS, getRandomAvatar } from '../constants/avatars';
 
-const MAX_PLAYERS = 6; // Max oyuncu sayısı
-const MAX_CUSTOM_TASKS = 5; // Max özel görev
+// Constants
+const MAX_PLAYERS = 6;
+const MAX_CUSTOM_TASKS = 5;
+
+// Component for a single player row with name input and avatar
+const PlayerItem = ({ 
+    player, 
+    index, 
+    onNameChange, 
+    onAvatarChange, 
+    inputRef,
+    focusedInput,
+    onFocus,
+    onBlur,
+    onSubmit,
+    totalPlayers 
+}) => (
+    <MotiView
+        key={`player-${index}`}
+        from={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.9 }}
+        transition={{ type: 'timing', duration: 250 }}
+        style={styles.playerCard}
+        accessible={true}
+        accessibilityLabel={`Oyuncu ${index + 1} bilgileri`}
+    >
+        <TouchableOpacity 
+            onPress={() => onAvatarChange(index)} 
+            style={styles.avatarButton}
+            accessibilityLabel={`Avatar değiştir, şu anki avatar: ${player.avatar}`}
+            accessibilityHint="Farklı bir avatar seçmek için dokunun"
+            accessibilityRole="button"
+        >
+            <Text style={styles.avatarText}>{player.avatar}</Text>
+        </TouchableOpacity>
+        
+        <View style={styles.inputContainer}>
+            <TextInput
+                ref={inputRef}
+                style={[
+                    styles.input, 
+                    focusedInput === index && styles.inputFocused
+                ]}
+                placeholder={`Oyuncu ${index + 1}`}
+                placeholderTextColor={COLORS.inputPlaceholder}
+                value={player.name}
+                onChangeText={(text) => onNameChange(text, index)}
+                maxLength={15}
+                autoCapitalize="words"
+                returnKeyType={index === totalPlayers - 1 ? "done" : "next"}
+                onFocus={() => onFocus(index)}
+                onBlur={onBlur}
+                onSubmitEditing={() => onSubmit(index)}
+                blurOnSubmit={index === totalPlayers - 1}
+                accessibilityLabel={`Oyuncu ${index + 1} ismi`}
+                accessibilityHint="Oyuncu ismini girin"
+            />
+            
+            <TouchableOpacity 
+                onPress={() => onAvatarChange(index)} 
+                style={styles.refreshButton}
+                accessibilityLabel="Avatar yenile"
+                accessibilityHint="Rastgele yeni bir avatar seçmek için dokunun"
+                accessibilityRole="button"
+            >
+                <Ionicons name="refresh-outline" size={18} color={COLORS.textSecondary} />
+            </TouchableOpacity>
+        </View>
+    </MotiView>
+);
+
+// Component for player count selector
+const PlayerCounter = ({ count, onDecrease, onIncrease, maxPlayers }) => (
+    <View style={styles.counterContainer}>
+        <TouchableOpacity
+            style={[styles.counterBtn, count <= 2 && styles.counterBtnDisabled]}
+            onPress={onDecrease} 
+            disabled={count <= 2} 
+            activeOpacity={0.7}
+            accessibilityLabel="Oyuncu sayısını azalt"
+            accessibilityHint={count <= 2 ? "Minimum oyuncu sayısına ulaşıldı" : "Oyuncu sayısını azaltmak için dokunun"}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: count <= 2 }}
+        >
+            <Ionicons 
+                name="remove" 
+                size={22} 
+                color={count <= 2 ? COLORS.textMuted : COLORS.textPrimary} 
+            />
+        </TouchableOpacity>
+        
+        <MotiView
+            key={`count-${count}`}
+            from={{ scale: 0.9, opacity: 0.8 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', damping: 15 }}
+            accessible={true}
+            accessibilityLabel={`${count} oyuncu`}
+            style={styles.counterTextContainer}
+        >
+            <Text style={styles.counterText}>{count}</Text>
+        </MotiView>
+        
+        <TouchableOpacity
+            style={[styles.counterBtn, count >= maxPlayers && styles.counterBtnDisabled]}
+            onPress={onIncrease} 
+            disabled={count >= maxPlayers} 
+            activeOpacity={0.7}
+            accessibilityLabel="Oyuncu sayısını artır"
+            accessibilityHint={count >= maxPlayers ? "Maksimum oyuncu sayısına ulaşıldı" : "Oyuncu sayısını artırmak için dokunun"}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: count >= maxPlayers }}
+        >
+            <Ionicons 
+                name="add" 
+                size={22} 
+                color={count >= maxPlayers ? COLORS.textMuted : COLORS.textPrimary} 
+            />
+        </TouchableOpacity>
+    </View>
+);
+
+// Component for a single custom task item
+const TaskItem = ({ task, index, onRemove }) => (
+    <MotiView
+        key={`task-${index}-${task}`}
+        from={{ opacity: 0, translateY: 10 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        exit={{ opacity: 0, translateY: 5 }}
+        transition={{ type: 'timing', duration: 250 }}
+        style={styles.taskCard}
+        accessible={true}
+        accessibilityLabel={`Özel görev ${index + 1}: ${task}`}
+    >
+        <Text 
+            style={styles.taskText} 
+            numberOfLines={3}
+            accessibilityLabel={`Görev: ${task}`}
+        >
+            {task}
+        </Text>
+        <TouchableOpacity 
+            onPress={() => onRemove(index)} 
+            style={styles.removeButton}
+            accessibilityLabel="Görevi sil"
+            accessibilityHint="Bu görevi listeden kaldırmak için dokunun"
+            accessibilityRole="button"
+        >
+            <Ionicons name="close-circle" size={20} color={COLORS.negativeLight} />
+        </TouchableOpacity>
+    </MotiView>
+);
+
+// Section component for consistent UI sections
+const Section = ({ children, title, subtitle, delay = 0, fromLeft = false }) => (
+    <MotiView 
+        style={styles.section}
+        from={{ opacity: 0, translateY: 15 }}
+        animate={{ opacity: 1, translateY: 0 }}
+        transition={{ type: 'timing', duration: 500, delay }}
+        accessible={true}
+        accessibilityLabel={title}
+    >
+        <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            {subtitle && (
+                <Text style={styles.sectionSubtitle}>{subtitle}</Text>
+            )}
+        </View>
+        {children}
+    </MotiView>
+);
 
 const SetupScreen = ({ navigation }) => {
-    // Oyuncu Sayısı ve İsimleri State'i
+    // State hooks
     const [playerCount, setPlayerCount] = useState(2);
-     // İsim ve avatarı birlikte tutalım
-     const initialPlayers = Array.from({ length: 2 }, (_, i) => ({ name: '', avatar: getRandomAvatar([]) })); // Başlangıçta boş avatar listesi
-     const [players, setPlayers] = useState(initialPlayers);
+    const [players, setPlayers] = useState(
+        Array.from({ length: 2 }, () => ({ name: '', avatar: getRandomAvatar([]) }))
+    );
+    const [newTask, setNewTask] = useState('');
+    const [customTasksList, setCustomTasksList] = useState([]);
+    const [focusedInput, setFocusedInput] = useState(null);
 
-     // Özel Görevler State'i
-     const [newTask, setNewTask] = useState('');
-     const [customTasksList, setCustomTasksList] = useState([]);
+    // Refs
+    const nameInputsRef = useRef([]);
+    const scrollViewRef = useRef();
+    const taskInputRef = useRef();
 
-    const [focusedInput, setFocusedInput] = useState(null); // Hangi inputun odakta olduğunu takip et
+    // Context
+    const { actions } = useGame();
 
-    const { actions } = useGame(); // Oyun aksiyonlarını al
-    const nameInputsRef = useRef([]); // İsim inputlarına focus olmak için referanslar
-    const scrollViewRef = useRef(); // Klavye açılınca scroll yapmak için referans
+    // Effect to assign/update avatars when player count changes
+    useEffect(() => {
+        assignRandomAvatars(playerCount, true);
+    }, [playerCount]);
 
-     // Bileşen mount edildiğinde veya oyuncu sayısı değiştiğinde avatarları ata/güncelle
-     useEffect(() => {
-         // Oyuncu sayısı değiştiğinde yeniden avatarları ata, isimleri koru
-        assignRandomAvatars(playerCount, true); // keepNames = true
-    }, [playerCount]); // Sadece playerCount değiştiğinde çalıştır
-
-    // --- Avatar Atama Fonksiyonu ---
-    // keepNames: true ise mevcut isimleri korur, sadece avatarı günceller/ekler/çıkarır
+    // Avatar assignment function
     const assignRandomAvatars = (count, keepNames = false) => {
         setPlayers(prevPlayers => {
-           const currentPlayers = keepNames ? [...prevPlayers] : []; // İsimleri koru veya sıfırdan başla
+            const currentPlayers = keepNames ? [...prevPlayers] : [];
             let assignedAvatars = [];
-           // Önce mevcut atanmış avatarları topla (isimleri koruyorsak)
+            
             if(keepNames) {
-                assignedAvatars = currentPlayers.slice(0, count).map(p => p?.avatar).filter(Boolean);
+                assignedAvatars = currentPlayers.slice(0, count)
+                    .map(p => p?.avatar)
+                    .filter(Boolean);
             }
 
             const newPlayers = Array(count).fill(null).map((_, index) => {
-                 const existingPlayer = currentPlayers[index] || {}; // Mevcut oyuncu bilgisi (varsa)
-                 const currentAvatar = existingPlayer.avatar;
+                const existingPlayer = currentPlayers[index] || {};
+                const currentAvatar = existingPlayer.avatar;
+                
+                let newAvatar = currentAvatar && !assignedAvatars.includes(currentAvatar) 
+                    ? currentAvatar 
+                    : getRandomAvatar(assignedAvatars);
 
-                 // Yeni bir avatar seç: Mevcut varsa ve kullanılmamışsa onu kullan, yoksa rastgele seç
-                 let newAvatar = currentAvatar && !assignedAvatars.includes(currentAvatar) ? currentAvatar : getRandomAvatar(assignedAvatars);
-
-                // Çakışma kontrolü (çok oyunculu durumda olabilir)
+                // Avoid duplicates
                 let tries = 0;
-                while(assignedAvatars.includes(newAvatar) && tries < AVATARS.length * 2) { // Ekstra deneme hakkı
+                while(assignedAvatars.includes(newAvatar) && tries < AVATARS.length * 2) {
                     newAvatar = getRandomAvatar(assignedAvatars);
                     tries++;
                 }
+                
                 if (assignedAvatars.includes(newAvatar)) {
                     console.warn("Çok fazla denemeye rağmen benzersiz avatar bulunamadı!");
-                    // En kötü ihtimalle rastgele birini ata
                     newAvatar = AVATARS[Math.floor(Math.random() * AVATARS.length)];
-                 }
+                }
 
-                 assignedAvatars.push(newAvatar); // Seçilen avatarı listeye ekle
+                assignedAvatars.push(newAvatar);
 
-                 return {
-                     name: keepNames ? (existingPlayer.name || '') : '', // İsimleri koru veya boşalt
-                     avatar: newAvatar,
-                 };
-             });
-             return newPlayers;
-         });
-     };
+                return {
+                    name: keepNames ? (existingPlayer.name || '') : '',
+                    avatar: newAvatar,
+                };
+            });
+            
+            return newPlayers;
+        });
+    };
 
-     // --- Oyuncu Sayısı Değişikliği ---
-     const handlePlayerCountChange = useCallback((change) => {
-         Keyboard.dismiss(); // Klavye açıksa kapat
-         const newCount = Math.max(2, Math.min(MAX_PLAYERS, playerCount + change));
-         if (newCount !== playerCount) {
-             setPlayerCount(newCount);
-            // useEffect zaten tetiklenecek ve assignRandomAvatars'ı çağıracak
-         }
-     }, [playerCount]);
+    // Player count handlers
+    const handlePlayerCountChange = useCallback((change) => {
+        Keyboard.dismiss();
+        const newCount = Math.max(2, Math.min(MAX_PLAYERS, playerCount + change));
+        if (newCount !== playerCount) {
+            setPlayerCount(newCount);
+            
+            // Provide haptic feedback if available
+            if (Platform.OS === 'ios' && AccessibilityInfo) {
+                AccessibilityInfo.announceForAccessibility(`Oyuncu sayısı ${newCount} olarak değiştirildi`);
+            }
+        }
+    }, [playerCount]);
 
-    // --- İsim Değişikliği ---
+    // Name change handler
     const handleNameChange = useCallback((text, index) => {
         setPlayers(prevPlayers => {
             const newPlayers = [...prevPlayers];
-             if (newPlayers[index]) {
-                 newPlayers[index] = { ...newPlayers[index], name: text };
-             }
+            if (newPlayers[index]) {
+                newPlayers[index] = { ...newPlayers[index], name: text };
+            }
             return newPlayers;
         });
     }, []);
 
-     // --- Avatar Değişikliği (Tek oyuncu için) ---
-     const handleAvatarChange = useCallback((index) => {
+    // Avatar change handler for individual player
+    const handleAvatarChange = useCallback((index) => {
         setPlayers(prevPlayers => {
             const newPlayers = [...prevPlayers];
             if (newPlayers[index]) {
-                 // Diğer oyuncuların avatarlarını al
-                 const otherAvatars = newPlayers
-                     .map((p, i) => (i !== index ? p.avatar : null))
-                     .filter(Boolean);
-                 // Farklı bir avatar seç
-                 let newAvatar = getRandomAvatar(otherAvatars);
-                 // Eğer hala aynı geldiyse (tek ihtimal buysa) tekrar dene
-                 if (newAvatar === newPlayers[index].avatar && AVATARS.length > 1) {
-                    const doubleCheckAvatars = [...otherAvatars, newAvatar]; // Mevcutu da ekle
+                const otherAvatars = newPlayers
+                    .map((p, i) => (i !== index ? p.avatar : null))
+                    .filter(Boolean);
+                
+                let newAvatar = getRandomAvatar(otherAvatars);
+                
+                if (newAvatar === newPlayers[index].avatar && AVATARS.length > 1) {
+                    const doubleCheckAvatars = [...otherAvatars, newAvatar];
                     newAvatar = getRandomAvatar(doubleCheckAvatars);
-                  }
+                }
 
-                 newPlayers[index] = { ...newPlayers[index], avatar: newAvatar };
-             }
+                newPlayers[index] = { ...newPlayers[index], avatar: newAvatar };
+            }
             return newPlayers;
-         });
-     }, []);
+        });
+    }, []);
 
-
-     // --- Özel Görev Ekleme ---
-     const handleAddTask = useCallback(() => {
+    // Task management handlers
+    const handleAddTask = useCallback(() => {
         const trimmedTask = newTask.trim();
         if (trimmedTask && customTasksList.length < MAX_CUSTOM_TASKS) {
             setCustomTasksList(prevTasks => [...prevTasks, trimmedTask]);
             setNewTask('');
-             Keyboard.dismiss(); // Ekleme sonrası klavyeyi kapat
-             setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100); // Listenin sonuna git
-         } else if (customTasksList.length >= MAX_CUSTOM_TASKS) {
-             Alert.alert("Limit Aşıldı", `En fazla ${MAX_CUSTOM_TASKS} özel görev ekleyebilirsiniz.`);
-         } else if (!trimmedTask) {
-             Alert.alert("Boş Görev", "Lütfen eklemek için bir görev yazın.");
-         }
-     }, [newTask, customTasksList]);
+            Keyboard.dismiss();
+            
+            // Scroll to newly added task
+            setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+            
+            // Announce for accessibility
+            if (AccessibilityInfo) {
+                AccessibilityInfo.announceForAccessibility("Görev eklendi");
+            }
+        } else if (customTasksList.length >= MAX_CUSTOM_TASKS) {
+            Alert.alert(
+                "Limit Aşıldı", 
+                `En fazla ${MAX_CUSTOM_TASKS} özel görev ekleyebilirsiniz.`,
+                [{ text: "Anladım", style: "default" }],
+                { cancelable: true }
+            );
+        } else if (!trimmedTask) {
+            Alert.alert(
+                "Boş Görev", 
+                "Lütfen eklemek için bir görev yazın.",
+                [{ text: "Tamam", style: "default" }],
+                { cancelable: true }
+            );
+        }
+    }, [newTask, customTasksList]);
 
-    // --- Özel Görevi Silme ---
     const handleRemoveTask = useCallback((indexToRemove) => {
         setCustomTasksList(prevTasks => prevTasks.filter((_, index) => index !== indexToRemove));
+        
+        // Announce for accessibility
+        if (AccessibilityInfo) {
+            AccessibilityInfo.announceForAccessibility("Görev silindi");
+        }
     }, []);
 
-    // --- Oyunu Başlat ---
+    // Game start handler
     const handleStartGame = useCallback(() => {
         Keyboard.dismiss();
-        const finalPlayerNames = players.map((player, index) => player.name.trim() || `Oyuncu ${index + 1}`);
+        
+        // Validate player names - ensure all players have names
+        const hasEmptyNames = players.some(player => !player.name.trim());
+        if (hasEmptyNames) {
+            Alert.alert(
+                "Eksik İsimler", 
+                "Bazı oyuncuların ismi girilmemiş. Otomatik isimler atanacak. Devam etmek istiyor musunuz?",
+                [
+                    { text: "İptal", style: "cancel" },
+                    { text: "Devam Et", onPress: startGameWithFinalData }
+                ],
+                { cancelable: true }
+            );
+        } else {
+            startGameWithFinalData();
+        }
+    }, [players, customTasksList]);
 
+    const startGameWithFinalData = () => {
         try {
+            // Generate final player names (use "Oyuncu X" for empty names)
+            const finalPlayerNames = players.map((player, index) => 
+                player.name.trim() || `Oyuncu ${index + 1}`
+            );
+            
+            // Setup game with context action
             actions.setupGame(finalPlayerNames, customTasksList);
-            navigation.replace('Game'); // Oyuna geç, geri dönülememesin
+            
+            // Navigate to game screen
+            navigation.replace('Game');
         } catch (error) {
             console.error("HATA [handleStartGame]:", error);
-            Alert.alert("Başlatma Hatası", "Oyunu başlatırken bir sorun oluştu. Lütfen tekrar deneyin.");
+            Alert.alert(
+                "Başlatma Hatası", 
+                "Oyunu başlatırken bir sorun oluştu. Lütfen tekrar deneyin.",
+                [{ text: "Tamam", style: "default" }]
+            );
         }
-    }, [players, customTasksList, actions, navigation]);
+    };
 
-    // --- Sonraki Inputa Focus ---
+    // Input focus handling
     const focusNextInput = (index) => {
         if (nameInputsRef.current[index + 1]) {
             nameInputsRef.current[index + 1].focus();
-         } else {
-             Keyboard.dismiss(); // Son input ise klavyeyi kapat
-         }
+        } else {
+            // If it's the last player name field, focus on task input if visible
+            if (taskInputRef.current) {
+                taskInputRef.current.focus();
+            } else {
+                Keyboard.dismiss();
+            }
+        }
     };
 
-    // Klavye açıldığında ilgili inputu görünür alana kaydırma
     const handleInputFocus = (refIndexOrId) => {
-         setFocusedInput(refIndexOrId); // Odaklanan input'u state'e al
-         // Sadece oyuncu inputları için scroll yap (görev inputu zaten sonda)
-         if (typeof refIndexOrId === 'number') {
-             const node = nameInputsRef.current[refIndexOrId];
-             if (node && scrollViewRef.current) {
-                 setTimeout(() => { // Keyboard animasyonu bitince
-                     // Inputun pozisyonunu al ve scroll et
-                      node.measure((fx, fy, width, height, px, py) => {
-                         // py: Inputun ekrandaki Y pozisyonu
-                         // height: Klavye yüksekliği (deneysel veya library ile alınabilir)
-                         // Hedef: py + inputHeight biraz görünecek şekilde scroll etmek
-                          const scrollOffsetY = py - SIZES.height * 0.2; // Ekranın %20 yukarısında dursun
-                          if (scrollOffsetY > 0) {
-                              scrollViewRef.current.scrollTo({ y: scrollOffsetY, animated: true });
-                          }
-                     });
-                     // Alternatif basit yöntem: Sadece sona kaydır
-                     // scrollViewRef.current.scrollToEnd({ animated: true });
-                  }, 250);
-             }
-         }
-     };
+        setFocusedInput(refIndexOrId);
+        
+        // Only scroll for player inputs (indexes are numbers)
+        if (typeof refIndexOrId === 'number') {
+            const node = nameInputsRef.current[refIndexOrId];
+            if (node && scrollViewRef.current) {
+                setTimeout(() => {
+                    node.measure((fx, fy, width, height, px, py) => {
+                        const scrollOffsetY = py - SIZES.height * 0.2;
+                        if (scrollOffsetY > 0) {
+                            scrollViewRef.current.scrollTo({ y: scrollOffsetY, animated: true });
+                        }
+                    });
+                }, 250);
+            }
+        } else if (refIndexOrId === 'newTask' && scrollViewRef.current) {
+            // If focusing the task input, scroll to it
+            setTimeout(() => {
+                scrollViewRef.current.scrollToEnd({ animated: true });
+            }, 250);
+        }
+    };
 
     return (
-        <LinearGradient colors={COLORS.backgroundGradient} style={styles.flexFill}>
-             <KeyboardAvoidingView
-                 behavior={Platform.OS === "ios" ? "padding" : "height"}
-                 style={styles.flexFill}
-                 keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0} // iOS için hafif offset
-             >
+        <LinearGradient 
+            colors={[COLORS.backgroundGradient[0], '#1a2936', COLORS.backgroundGradient[1]]}
+            start={{x: 0, y: 0}}
+            end={{x: 1, y: 1}}
+            style={styles.container}
+            accessible={true}
+            accessibilityLabel="Yeni Oyun Kurulum Ekranı"
+        >
+            <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
+            
+            <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={styles.flex}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
+            >
                 <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-                     <ScrollView
+                    <ScrollView
                         ref={scrollViewRef}
-                        contentContainerStyle={styles.scrollContainer}
+                        contentContainerStyle={styles.scrollContent}
                         keyboardShouldPersistTaps="handled"
                         showsVerticalScrollIndicator={false}
                     >
-                        <View style={styles.container}>
-                             {/* Header */}
-                            <View style={styles.header}>
-                                <Text style={styles.title}>Yeni Oyun Kur</Text>
-                                <TouchableOpacity style={styles.rulesButton} onPress={() => navigation.navigate('HowToPlay')}>
-                                     <Ionicons name="help-circle-outline" size={SIZES.iconSizeLarge} color={COLORS.accentLight} />
-                                 </TouchableOpacity>
-                            </View>
-
-                            {/* Player Count */}
-                            <View style={styles.section}>
-                                <Text style={styles.label}>Oyuncu Sayısı</Text>
-                                <View style={styles.playerCountContainer}>
-                                    <TouchableOpacity
-                                        style={[styles.countButton, playerCount <= 2 && styles.countButtonDisabled]}
-                                        onPress={() => handlePlayerCountChange(-1)} disabled={playerCount <= 2} activeOpacity={0.7} >
-                                        <Ionicons name="remove-outline" size={SIZES.iconSize * 1.1} color={playerCount <= 2 ? COLORS.textMuted : COLORS.textPrimary} />
-                                    </TouchableOpacity>
-                                    <Text style={styles.playerCountText}>{playerCount}</Text>
-                                    <TouchableOpacity
-                                        style={[styles.countButton, playerCount >= MAX_PLAYERS && styles.countButtonDisabled]}
-                                        onPress={() => handlePlayerCountChange(1)} disabled={playerCount >= MAX_PLAYERS} activeOpacity={0.7} >
-                                        <Ionicons name="add-outline" size={SIZES.iconSize * 1.1} color={playerCount >= MAX_PLAYERS ? COLORS.textMuted : COLORS.textPrimary} />
-                                    </TouchableOpacity>
-                                </View>
-                            </View>
-
-                            {/* Player Names & Avatars */}
-                            <View style={styles.section}>
-                                <Text style={styles.label}>Oyuncular</Text>
-                                <View style={styles.playersContainer}>
-                                    {/* AnimatePresence ile oyuncu ekleme/çıkarma animasyonu */}
-                                    <AnimatePresence>
-                                        {players.map((player, index) => (
-                                            <MotiView
-                                                key={`player-${index}`} // Count değişince key değişir, animasyon çalışır
-                                                from={{ opacity: 0, scaleY: 0.8, height: 0 }}
-                                                animate={{ opacity: 1, scaleY: 1, height: 75 }} // Sabit yükseklik
-                                                exit={{ opacity: 0, scaleY: 0.8, height: 0 }}
-                                                transition={{ type: 'timing', duration: 250 }}
-                                                style={styles.playerInputRow}
-                                                // overflow="hidden" // height animasyonu için
-                                            >
-                                                <TouchableOpacity onPress={() => handleAvatarChange(index)} style={styles.avatarButton}>
-                                                    <Text style={styles.avatarText}>{player.avatar}</Text>
-                                                </TouchableOpacity>
-                                                <TextInput
-                                                    ref={(el) => (nameInputsRef.current[index] = el)}
-                                                    style={[ styles.input, styles.nameInput, focusedInput === index && styles.inputFocused ]}
-                                                    placeholder={`Oyuncu ${index + 1}`}
-                                                    placeholderTextColor={COLORS.inputPlaceholder}
-                                                    value={player.name}
-                                                    onChangeText={(text) => handleNameChange(text, index)}
-                                                    maxLength={15}
-                                                    autoCapitalize="words"
-                                                    returnKeyType={index === players.length - 1 ? "done" : "next"}
-                                                    onFocus={() => handleInputFocus(index)} // Odaklanınca kaydırma ve state güncelleme
-                                                    onBlur={() => setFocusedInput(null)} // Odak kalkınca state'i sıfırla
-                                                    onSubmitEditing={() => focusNextInput(index)} // Enter ile sonraki
-                                                    blurOnSubmit={index === players.length - 1} // Sadece son inputta submit edince klavyeyi kapat
-                                                />
-                                            </MotiView>
-                                        ))}
-                                    </AnimatePresence>
-                                </View>
-                            </View>
-
-                             {/* Custom Tasks */}
-                            <View style={styles.section}>
-                                <Text style={styles.label}>Özel Görev Ekle (Opsiyonel, Max {MAX_CUSTOM_TASKS})</Text>
-                                <View style={styles.addTaskContainer}>
-                                    <TextInput
-                                        style={[ styles.input, styles.taskInput, focusedInput === 'newTask' && styles.inputFocused ]}
-                                        placeholder="Kendi komik görevini yaz..."
-                                        placeholderTextColor={COLORS.inputPlaceholder}
-                                        value={newTask}
-                                        onChangeText={setNewTask}
-                                        maxLength={120}
-                                        returnKeyType="done" // Enter = Ekle
-                                        onSubmitEditing={handleAddTask}
-                                        onFocus={() => handleInputFocus('newTask')}
-                                        onBlur={() => setFocusedInput(null)}
-                                         multiline={true} // Çok satırlı görevler için
-                                         numberOfLines={2} // Başlangıç yüksekliği
-                                    />
-                                    <ActionButton
-                                        title="Ekle" onPress={handleAddTask}
-                                        disabled={!newTask.trim() || customTasksList.length >= MAX_CUSTOM_TASKS}
-                                        style={styles.addButton} textStyle={styles.addButtonText}
-                                        type="success" iconLeft="add-circle-outline"
-                                    />
-                                </View>
-                                 {/* Task List */}
-                                <AnimatePresence>
-                                     {customTasksList.length > 0 && (
-                                         <View style={styles.taskList}>
-                                             {customTasksList.map((task, index) => (
-                                                 <MotiView
-                                                    key={`task-${index}-${task}`}
-                                                    from={{ opacity: 0, scale: 0.8, height: 0}}
-                                                    animate={{ opacity: 1, scale: 1, height: 'auto'}}
-                                                    exit={{ opacity: 0, scale: 0.8, height: 0}}
-                                                    transition={{ type: 'timing', duration: 250 }}
-                                                    style={styles.taskItem}
-                                                    // overflow="hidden"
-                                                 >
-                                                     <Text style={styles.taskText} numberOfLines={3}>{task}</Text>
-                                                     <TouchableOpacity onPress={() => handleRemoveTask(index)} style={styles.removeButton}>
-                                                         <Ionicons name="trash-outline" size={SIZES.iconSizeSmall * 1.1} color={COLORS.negativeLight} />
-                                                      </TouchableOpacity>
-                                                 </MotiView>
-                                             ))}
-                                          </View>
-                                     )}
-                                </AnimatePresence>
-                                {customTasksList.length === 0 && (
-                                     <Text style={styles.noTasksText}>Henüz özel görev eklenmedi.</Text>
-                                )}
-                             </View>
-
-                            {/* Start Game Button */}
-                            <View style={styles.bottomAction}>
-                                {/* MotiView ile hafif bir animasyon */}
-                                 <MotiView from={{opacity:0, translateY: 10}} animate={{opacity:1, translateY: 0}} transition={{delay:100}}>
-                                    <ActionButton
-                                        title={`Oyunu ${playerCount} Kişiyle Başlat`}
-                                        onPress={handleStartGame}
-                                        iconRight="rocket-outline"
-                                        type="primary" // Ana başlatma rengi
-                                         // Loading state eklenebilir
-                                     />
-                                 </MotiView>
-                             </View>
+                        {/* Header */}
+                        <View style={styles.header}>
+                            <MotiView 
+                                from={{ opacity: 0, translateY: -15 }}
+                                animate={{ opacity: 1, translateY: 0 }}
+                                transition={{ type: 'timing', duration: 600 }}
+                            >
+                                <Text style={styles.title} accessibilityRole="header">Yeni Oyun</Text>
+                            </MotiView>
+                            
+                            <TouchableOpacity 
+                                style={styles.helpButton} 
+                                onPress={() => navigation.navigate('HowToPlay')}
+                                accessibilityLabel="Nasıl oynanır"
+                                accessibilityHint="Oyun kurallarını görüntülemek için dokunun"
+                                accessibilityRole="button"
+                            >
+                                <Ionicons name="help-circle" size={26} color={COLORS.accentLight} />
+                            </TouchableOpacity>
                         </View>
+
+                        {/* Player Count Section */}
+                        <Section 
+                            title="Oyuncu Sayısı" 
+                            delay={150}
+                        >
+                            <PlayerCounter 
+                                count={playerCount}
+                                onDecrease={() => handlePlayerCountChange(-1)}
+                                onIncrease={() => handlePlayerCountChange(1)}
+                                maxPlayers={MAX_PLAYERS}
+                            />
+                        </Section>
+
+                        {/* Players Section */}
+                        <Section 
+                            title="Oyuncular" 
+                            delay={250}
+                        >
+                            <View style={styles.playersContainer}>
+                                <AnimatePresence>
+                                    {players.map((player, index) => (
+                                        <PlayerItem 
+                                            key={`player-${index}`}
+                                            player={player}
+                                            index={index}
+                                            onNameChange={handleNameChange}
+                                            onAvatarChange={handleAvatarChange}
+                                            inputRef={(el) => (nameInputsRef.current[index] = el)}
+                                            focusedInput={focusedInput}
+                                            onFocus={handleInputFocus}
+                                            onBlur={() => setFocusedInput(null)}
+                                            onSubmit={focusNextInput}
+                                            totalPlayers={players.length}
+                                        />
+                                    ))}
+                                </AnimatePresence>
+                            </View>
+                        </Section>
+
+                        {/* Custom Tasks Section */}
+                        <Section 
+                            title="Özel Görev Ekle" 
+                            subtitle={`${customTasksList.length}/${MAX_CUSTOM_TASKS} görev (opsiyonel)`}
+                            delay={350}
+                        >
+                            <View style={styles.taskInputContainer}>
+                                <TextInput
+                                    ref={taskInputRef}
+                                    style={[styles.taskInput, focusedInput === 'newTask' && styles.inputFocused]}
+                                    placeholder="Kendi komik görevini yaz..."
+                                    placeholderTextColor={COLORS.inputPlaceholder}
+                                    value={newTask}
+                                    onChangeText={setNewTask}
+                                    maxLength={120}
+                                    returnKeyType="done"
+                                    onSubmitEditing={handleAddTask}
+                                    onFocus={() => handleInputFocus('newTask')}
+                                    onBlur={() => setFocusedInput(null)}
+                                    multiline={true}
+                                    numberOfLines={2}
+                                    accessibilityLabel="Özel görev giriş alanı"
+                                    accessibilityHint="Oyun sırasında kullanılacak kendi özel görevinizi girin"
+                                />
+                                <TouchableOpacity
+                                    style={[
+                                        styles.addButton,
+                                        (!newTask.trim() || customTasksList.length >= MAX_CUSTOM_TASKS) && styles.addButtonDisabled
+                                    ]}
+                                    onPress={handleAddTask}
+                                    disabled={!newTask.trim() || customTasksList.length >= MAX_CUSTOM_TASKS}
+                                    accessibilityLabel="Görevi ekle"
+                                    accessibilityHint="Yazdığınız görevi listeye eklemek için dokunun"
+                                    accessibilityState={{ 
+                                        disabled: !newTask.trim() || customTasksList.length >= MAX_CUSTOM_TASKS 
+                                    }}
+                                >
+                                    <Ionicons 
+                                        name="add-circle" 
+                                        size={28} 
+                                        color={(!newTask.trim() || customTasksList.length >= MAX_CUSTOM_TASKS) 
+                                            ? COLORS.textMuted 
+                                            : COLORS.positive} 
+                                    />
+                                </TouchableOpacity>
+                            </View>
+                            
+                            {/* Task List */}
+                            <View style={styles.taskList}>
+                                <AnimatePresence>
+                                    {customTasksList.map((task, index) => (
+                                        <TaskItem 
+                                            key={`task-${index}`}
+                                            task={task}
+                                            index={index}
+                                            onRemove={handleRemoveTask}
+                                        />
+                                    ))}
+                                </AnimatePresence>
+                                
+                                {customTasksList.length === 0 && (
+                                    <Text style={styles.emptyTasksText} accessibilityLabel="Henüz özel görev eklenmedi">
+                                        Henüz özel görev eklenmedi
+                                    </Text>
+                                )}
+                            </View>
+                        </Section>
+
+                        {/* Start Game Button */}
+                        <MotiView 
+                            style={styles.startButtonContainer}
+                            from={{opacity: 0, translateY: 20}} 
+                            animate={{opacity: 1, translateY: 0}} 
+                            transition={{type: 'timing', duration: 600, delay: 450}}
+                        >
+                            <TouchableOpacity
+                                style={styles.startButton}
+                                onPress={handleStartGame}
+                                accessibilityLabel={`Oyunu ${playerCount} kişiyle başlat`}
+                                accessibilityHint="Oyunu başlatmak için dokunun"
+                                accessibilityRole="button"
+                            >
+                                <Text style={styles.startButtonText}>Başlat</Text>
+                                <Ionicons name="rocket" size={18} color="#fff" style={styles.startIcon} />
+                            </TouchableOpacity>
+                            
+                            {playerCount > 2 && (
+                                <Text 
+                                    style={styles.startHintText}
+                                    accessibilityLabel={`${playerCount} kişilik oyun başlatılacak, hazır mısınız?`}
+                                >
+                                    {playerCount} kişiyle oyna
+                                </Text>
+                            )}
+                        </MotiView>
                     </ScrollView>
                 </TouchableWithoutFeedback>
-             </KeyboardAvoidingView>
-         </LinearGradient>
+            </KeyboardAvoidingView>
+        </LinearGradient>
     );
 };
 
-// --- Styles --- (Minor adjustments might be needed after layout review)
+// Modern, minimal styles
 const styles = StyleSheet.create({
-    flexFill: { flex: 1 },
-    scrollContainer: {
-        flexGrow: 1,
-        justifyContent: 'space-between',
-        paddingBottom: SIZES.paddingLarge * 2, // En alttaki buton için daha fazla boşluk
-    },
-    container: {
+    container: { 
         flex: 1,
-        alignItems: 'center',
-        paddingHorizontal: SIZES.padding,
-        paddingTop: Platform.OS === 'android' ? Constants.statusBarHeight + SIZES.padding : SIZES.paddingLarge * 1.2,
+        backgroundColor: '#121a22',
+    },
+    flex: {
+        flex: 1,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingHorizontal: 16,
+        paddingTop: Platform.OS === 'android' ? Constants.statusBarHeight + 16 : 50, 
+        paddingBottom: 40,
     },
     header: {
-        width: '100%',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: SIZES.marginLarge * 1.5,
+        marginBottom: 32,
         position: 'relative',
     },
     title: {
-        fontSize: SIZES.h2 * 1.1,
-        fontFamily: SIZES.bold,
-        color: COLORS.textPrimary,
+        fontSize: 28,
+        fontWeight: '700',
+        color: '#fff',
         textAlign: 'center',
+        letterSpacing: 0.5,
     },
-    rulesButton: {
+    helpButton: {
         position: 'absolute',
-        right: -SIZES.paddingSmall,
-        top: -SIZES.paddingSmall,
-        padding: SIZES.padding,
-        zIndex: 1,
+        right: 0,
+        padding: 8,
     },
     section: {
+        marginBottom: 28,
         width: '100%',
-        maxWidth: SIZES.contentMaxWidth,
-        marginBottom: SIZES.marginLarge * 1.3,
     },
-    label: {
-        fontSize: SIZES.title,
-        fontFamily: SIZES.bold,
+    sectionHeader: {
+        marginBottom: 16,
+    },
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: COLORS.accentLight,
+        marginBottom: 4,
+    },
+    sectionSubtitle: {
+        fontSize: 13,
         color: COLORS.textSecondary,
-        marginBottom: SIZES.margin,
-        alignSelf: 'flex-start',
+        opacity: 0.8,
     },
-    playerCountContainer: {
+    counterContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: 'rgba(255,255,255,0.07)',
-        paddingHorizontal: SIZES.padding,
-        paddingVertical: SIZES.paddingSmall,
-        borderRadius: SIZES.inputRadius * 2,
-        minHeight: 65,
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderRadius: 18,
+        padding: 8,
+        marginVertical: 8,
     },
-    countButton: {
-        padding: SIZES.padding,
-        borderRadius: 50, // Tam yuvarlak
-        backgroundColor: COLORS.accentDisabled,
+    counterBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255,255,255,0.08)',
         alignItems: 'center',
         justifyContent: 'center',
     },
-    countButtonDisabled: {
-        backgroundColor: 'rgba(90, 103, 124, 0.4)',
-        opacity: 0.6,
+    counterBtnDisabled: {
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        opacity: 0.5,
     },
-    playerCountText: {
-        fontSize: SIZES.h2 * 1.2,
-        fontFamily: SIZES.bold,
-        color: COLORS.textPrimary,
-        textAlign: 'center',
-        minWidth: 60,
+    counterTextContainer: {
+        width: 60,
+        alignItems: 'center',
+    },
+    counterText: {
+        fontSize: 28,
+        fontWeight: '700',
+        color: '#fff',
     },
     playersContainer: {
+        marginTop: 4,
         width: '100%',
     },
-    playerInputRow: {
+    playerCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: SIZES.marginMedium, // Satırlar arası boşluk
-         height: 75, // Moti animasyonu için sabit yükseklik
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderRadius: 16,
+        padding: 12,
+        marginBottom: 12,
     },
     avatarButton: {
-        padding: SIZES.base,
-        marginRight: SIZES.margin,
-        borderRadius: 40, // Yuvarlak avatar arka planı
-        backgroundColor: 'rgba(255, 255, 255, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-         width: SIZES.h2 * 2, // Genişlik ayarı
-         height: SIZES.h2 * 2, // Yükseklik ayarı
-         alignItems:'center', // Emojiyi ortala
-         justifyContent:'center',
+        width: 45,
+        height: 45,
+        borderRadius: 22.5,
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginRight: 12,
     },
     avatarText: {
-        fontSize: SIZES.h2, // Avatar boyutu
+        fontSize: 22,
     },
-    input: { // Genel input stili
-        backgroundColor: COLORS.inputBg,
-        borderWidth: 1.5,
-        borderColor: COLORS.inputBorder,
-        color: COLORS.inputText,
-        paddingHorizontal: SIZES.paddingMedium,
-         paddingVertical: Platform.OS === 'ios' ? SIZES.paddingMedium * 1.2 : SIZES.paddingMedium * 0.8, // Dikey padding ince ayar
-        borderRadius: SIZES.inputRadius,
-        fontSize: SIZES.body,
-        fontFamily: SIZES.regular,
-         textAlignVertical: 'center', // Android için dikey hizalama
+    inputContainer: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
     },
-    nameInput: { // Oyuncu adı inputuna özel
-        flex: 1, // Kalan alanı doldur
-         height: '80%', // Avatar ile hizalamak için yükseklik
+    input: {
+        flex: 1,
+        height: 40,
+        backgroundColor: 'rgba(255,255,255,0.03)',
+        borderRadius: 10,
+        padding: 10,
+        color: '#fff',
+        fontSize: 16,
     },
     inputFocused: {
-        borderColor: COLORS.inputBorderFocused,
-        backgroundColor: 'rgba(66, 153, 225, 0.1)',
-        shadowColor: COLORS.inputBorderFocused,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 3,
-        elevation: 4, // Android shadow
+        backgroundColor: 'rgba(255,255,255,0.08)',
     },
-    addTaskContainer: {
+    refreshButton: {
+        padding: 8,
+        marginLeft: 8,
+        backgroundColor: 'rgba(255,255,255,0.08)',
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    taskInputContainer: {
         flexDirection: 'row',
-        alignItems: 'flex-start', // Multiline input için başlangıca hizala
-        marginBottom: SIZES.marginMedium,
+        alignItems: 'center',
+        backgroundColor: 'rgba(255,255,255,0.06)',
+        borderRadius: 16,
+        padding: 12,
+        marginBottom: 16,
     },
     taskInput: {
         flex: 1,
-        marginRight: SIZES.marginSmall,
-        // minHeight: 50, // Multiline için min yükseklik
-         maxHeight: 100, // Uzun görevler için max yükseklik
-         paddingVertical: SIZES.padding, // İç padding
-         textAlignVertical: 'top', // Multiline için üstten başla
+        minHeight: 40,
+        backgroundColor: 'transparent',
+        color: '#fff',
+        fontSize: 15,
+        paddingVertical: 4,
+        marginRight: 12,
     },
     addButton: {
-        width: 'auto',
-        minWidth: 70,
-        paddingHorizontal: SIZES.padding,
-         marginVertical: 0,
-         // Yüksekliği taskInput ile daha iyi hizala (approx.)
-         height: Platform.OS === 'ios' ? 50 : 55,
-         alignSelf: 'center', // Dikeyde ortala (container alignItems: flex-start olduğu için)
+        padding: 8,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
-    addButtonText: {
-        fontSize: SIZES.body * 0.9, // Biraz daha küçük olabilir
+    addButtonDisabled: {
+        opacity: 0.5,
     },
     taskList: {
-        marginTop: SIZES.base,
+        width: '100%',
     },
-    taskItem: {
+    taskCard: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        paddingVertical: SIZES.paddingSmall * 1.2, // Daha fazla dikey boşluk
-        paddingLeft: SIZES.padding,
-        paddingRight: SIZES.paddingSmall,
-        borderRadius: SIZES.base,
-        marginBottom: SIZES.base,
-        borderLeftWidth: 3,
-        borderLeftColor: COLORS.warning,
-        minHeight: 50, // min yükseklik
-         overflow: 'hidden', // Moti animasyonu için
+        backgroundColor: 'rgba(255,255,255,0.04)',
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 10,
     },
     taskText: {
         flex: 1,
-        fontSize: SIZES.caption,
-        fontFamily: SIZES.regular,
-        color: COLORS.textPrimary,
-        marginRight: SIZES.base,
-        lineHeight: SIZES.caption * 1.4,
+        fontSize: 15,
+        color: '#fff',
+        marginRight: 10,
+        lineHeight: 20,
     },
     removeButton: {
-        padding: SIZES.paddingSmall * 0.8,
-        marginLeft: SIZES.base,
-        borderRadius: SIZES.base,
+        padding: 6,
+        borderRadius: 12,
+        backgroundColor: 'rgba(255,105,97,0.15)',
     },
-    noTasksText: {
-        color: COLORS.textMuted,
+    emptyTasksText: {
+        color: 'rgba(255,255,255,0.4)',
+        textAlign: 'center',
         fontStyle: 'italic',
-        textAlign: 'center',
-        marginTop: SIZES.margin,
-        fontFamily: SIZES.regular,
-        fontSize: SIZES.caption,
-        lineHeight: SIZES.caption * 1.5,
+        fontSize: 14,
+        paddingVertical: 16,
     },
-    bottomAction: {
-        width: '100%',
-        maxWidth: SIZES.buttonMaxWidth,
-        marginTop: SIZES.marginLarge,
-        paddingBottom: SIZES.padding, // Klavye görünümünü itmemesi için
+    startButtonContainer: {
+        alignItems: 'center',
+        marginTop: 24,
+        marginBottom: 20,
     },
-    warningText: {
-        fontSize: SIZES.small,
-        color: COLORS.warningLight,
-        textAlign: 'center',
-        marginTop: SIZES.base * 1.5,
-        fontFamily: SIZES.regular,
+    startButton: {
+        backgroundColor: COLORS.primary,
+        borderRadius: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 32,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: COLORS.primary,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    startButtonText: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#fff',
+    },
+    startIcon: {
+        marginLeft: 10,
+    },
+    startHintText: {
+        fontSize: 13,
+        color: 'rgba(255,255,255,0.6)',
+        marginTop: 10,
     },
 });
 

@@ -9,12 +9,13 @@ export const cardData = {
     "Hayatında aldığın en kötü hediye neydi?",
     "En son kime yalan söylediğini itiraf et (detay gerekmez).",
     "Gruptaki bir kişiyi seç ve onun komik bir taklidini yap.", // Oylanabilir olabilir
-    { text: "Yaptığın en garip alışkanlığını anlat.", votable: false },
-    { text: "10 saniye boyunca durmadan kahkaha at.", votable: true }, // Oylanabilir
-    { text: "3 tur boyunca konuştuğun her cümlenin sonuna '...dedi Optimus Prime' ekle.", votable: true }, // Oylanabilir
-    { text: "Son google aramanı yüksek sesle oku.", votable: false },
-    { text: "Gizli bir yeteneğin varsa göster veya anlat.", votable: false },
+    //{ text: "Yaptığın en garip alışkanlığını anlat.", votable: false },
+    //{ text: "10 saniye boyunca durmadan kahkaha at.", votable: true }, // Oylanabilir
+    //{ text: "3 tur boyunca konuştuğun her cümlenin sonuna '...dedi Optimus Prime' ekle.", votable: true }, // Oylanabilir
+    //{ text: "Son google aramanı yüksek sesle oku.", votable: false },
+    //{ text: "Gizli bir yeteneğin varsa göster veya anlat.", votable: false },
 
+    
     // Biraz Daha Cesaret/Dürüstlük
     "Bu gruptaki bir kişiye dürüst bir iltifatta bulun.",
     "En büyük pişmanlığın nedir?",
