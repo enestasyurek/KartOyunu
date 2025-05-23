@@ -1,12 +1,14 @@
 // context/GameProvider.js
-import React, { createContext, useReducer, useCallback, useMemo, useEffect } from 'react';
-import { LayoutAnimation, Platform, UIManager, AppState, Alert } from 'react-native';
+import React, { createContext, useReducer, useCallback, useMemo, useEffect, useState } from 'react';
+import { LayoutAnimation, Platform, UIManager, AppState, Alert, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { gameReducer } from './gameReducer';
 import { initialGameState } from './initialStates';
 import { useSounds } from '../hooks/useSounds';
 import { getAchievementDetails, ACHIEVEMENTS_LIST } from '../data/achievements'; // MAX_PLAYERS buradan alınabilir
 import { AVATARS } from '../constants/avatars'; // Gerekirse
+import AchievementNotification from '../components/AchievementNotification';
+import Constants from 'expo-constants';
 
 // Sabitler
 const TARGET_SCORE = 20;
@@ -25,6 +27,8 @@ const configureAnimation = (duration = 250) => { try { LayoutAnimation.configure
 export const GameProvider = ({ children }) => {
     // --- State ve Dispatch ---
     const [gameState, dispatch] = useReducer(gameReducer, initialGameState);
+    const [currentAchievement, setCurrentAchievement] = useState(null);
+    const [showToast, setShowToast] = useState(false);
     // --- Custom Hooks ---
     const playSound = useSounds();
 
@@ -155,13 +159,8 @@ export const GameProvider = ({ children }) => {
              triggerFeedback(Haptics.ImpactFeedbackStyle.Light, 'buttonClick');
              // Reducer oylamayı işleyecek ve gerekirse sonuçları hesaplayıp state'i güncelleyecek
              dispatch({ type: 'CAST_VOTE', payload: { voterId, vote } });
-
-             // Başarım ve istatistik güncellemeleri reducer'da veya vote sonrası effect'te yapılabilir.
-             // Şimdilik reducer'da bırakıldı.
-             // Geri bildirimler reducer'dan gelen state değişikliğine göre GameScreen'de verilebilir.
-
          } catch(e) { logError('castVote', e); }
-    }, [gameState.votingInfo, dispatch, triggerFeedback, logError]); // processVotingResults bağımlılığı kaldırıldı
+    }, [gameState, dispatch, triggerFeedback, logError]);
 
      // Genel Görev Tamamlama
      const handleTaskCompletion = useCallback((playerId, points, achievementId = null, statKey = null, isVotable = false, taskInfo = null, wasDelegated = false) => {
@@ -175,12 +174,13 @@ export const GameProvider = ({ children }) => {
                  // Direkt tamamlar (Reducer sonraki adıma geçer)
                  dispatch({ type: 'COMPLETE_TASK_DIRECTLY', payload: { playerId, points, wasDelegated } });
                  triggerFeedback(Haptics.NotificationFeedbackType.Success, 'scorePoint');
+                 
                  if (achievementId) unlockAchievement(achievementId);
                  if (statKey) updateStat(statKey, 1, playerId);
                  updateStat('totalScoreAccumulated', points);
+                 
                  const player = gameState.players.find(p => p.id === playerId);
-                 if(player && ((player.score || 0) + points) >= 30) unlockAchievement('high_scorer');
-                 // Sıra geçişi artık reducer tarafından yönetiliyor (COMPLETE_TASK_DIRECTLY sonrası)
+                 if (player && ((player.score || 0) + points) >= 30) unlockAchievement('high_scorer');
              }
          } catch (error) {
              logError('handleTaskCompletion Logic', error);
@@ -188,7 +188,7 @@ export const GameProvider = ({ children }) => {
              // Hata durumunda state'i temizleyip sıra geçmeyi dene
              dispatch({ type: 'CLEAR_SELECTION_AND_PASS_TURN' });
          }
-     }, [dispatch, unlockAchievement, updateStat, triggerFeedback, gameState.players, logError]); // nextTurn bağımlılığı kaldırıldı
+     }, [dispatch, unlockAchievement, updateStat, triggerFeedback, gameState.players, gameState.currentRedCard, logError]);
 
 
     // --- Karar & Delegasyon Aksiyonları ---
@@ -240,6 +240,7 @@ export const GameProvider = ({ children }) => {
              configureAnimation();
              dispatch({ type: 'DELEGATOR_COMPLETE_BLUE' }); // Reducer fazı 'redCardForSelected' yapacak
              triggerFeedback(Haptics.NotificationFeedbackType.Success, 'scorePoint');
+             
              updateStat('tasksDelegated', 1, currentPlayer.id); updateStat('totalScoreAccumulated', 10);
               if ((currentPlayer.score || 0) + 10 >= 30) { unlockAchievement('high_scorer'); }
         } catch(e) { logError('delegatorDidBlueTask', e); }
@@ -338,12 +339,39 @@ export const GameProvider = ({ children }) => {
            const achievementId = gameState.pendingAchievementNotifications[0];
            const details = getAchievementDetails(achievementId);
            const timer = setTimeout(() => {
-               Alert.alert(`Başarım Açıldı!`, `🏆 ${details?.name || achievementId}\n${details?.description || ''}`);
-               markAchievementNotified(achievementId); // Bildirildi olarak işaretle
+               // Replace Alert.alert with our custom toast
+               setCurrentAchievement(details);
+               setShowToast(true);
+               // Enhanced haptic feedback for achievements - use a stronger notification pattern
+               if (Platform.OS !== 'web') {
+                 try {
+                   // Try using a stronger notification pattern
+                   Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                   
+                   // Add a slight delay then trigger impact for emphasis
+                   setTimeout(() => {
+                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+                   }, 150);
+                 } catch (error) {
+                   // Fallback to simple feedback if advanced patterns fail
+                   triggerFeedback(Haptics.NotificationFeedbackType.Success, 'achievement');
+                 }
+               } else {
+                 // Web fallback
+                 triggerFeedback(null, 'achievement');
+               }
            }, 700);
            return () => clearTimeout(timer);
        }
    }, [gameState.pendingAchievementNotifications, markAchievementNotified]);
+
+   const handleToastHide = useCallback(() => {
+       setShowToast(false);
+       if (currentAchievement) {
+           markAchievementNotified(currentAchievement.id);
+           setCurrentAchievement(null);
+       }
+   }, [currentAchievement, markAchievementNotified]);
 
    // --- Context Değeri ---
    const actions = useMemo(() => ({
@@ -367,6 +395,11 @@ export const GameProvider = ({ children }) => {
    return (
        <GameContext.Provider value={contextValue}>
            {children}
+           <AchievementNotification 
+               achievement={currentAchievement}
+               visible={showToast} 
+               onHide={handleToastHide}
+           />
        </GameContext.Provider>
    );
 };
