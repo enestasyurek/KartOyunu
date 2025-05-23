@@ -45,7 +45,7 @@ export const gameReducer = (state, action) => {
 
     switch (action.type) {
         case 'SETUP_GAME': {
-            const { playerNames, customTasks } = action.payload;
+            const { playerNames, customTasks, targetScore = 20 } = action.payload;
             try {
                 let assignedAvatars = [];
                 const initialPlayers = playerNames.map((name, index) => {
@@ -79,6 +79,7 @@ export const gameReducer = (state, action) => {
                     redDeck: combinedRedDeck,
                     blueDeck: initialBlueDeck,
                     blackDeck: initialBlackDeck,
+                    targetScore: targetScore,
                     gamePhase: 'initialBlueCardReveal',
                     revealingPlayerIndex: 0,
                     message: `${initialPlayers[0]?.name || ''}, sıra sende. Başlamak için Mavi Kartına bak.`,
@@ -430,7 +431,7 @@ export const gameReducer = (state, action) => {
 
 
         case 'END_GAME_CHECK': {
-            const winner = state.players.find(p => (p.score || 0) >= 20);
+            const winner = state.players.find(p => (p.score || 0) >= state.targetScore);
             if (winner && !['assigningBlackCard', 'ended', 'ending'].includes(state.gamePhase)) {
                  console.log("Reducer END_GAME_CHECK: Kazanan var -> 'ending' fazına geçiliyor.");
                  // 'ending' fazı sadece bir ara durum, hemen 'assigningBlackCard'a geçebiliriz.
@@ -445,7 +446,7 @@ export const gameReducer = (state, action) => {
 
                  return {
                      ...state, gamePhase: 'assigningBlackCard', // Direkt siyah kart fazına geç
-                     message: `Oyun Bitti! En düşük puan (${loser.score || 0}) ile ${loser.name} Siyah Kart çekecek!`,
+                     message: `Oyun Bitti! ${winnerPlayer?.name || 'Biri'} ${state.targetScore} puana ulaştı! En düşük puan (${loser.score || 0}) ile ${loser.name} Siyah Kart çekecek!`,
                      selectedPlayerForTask: loser.id, // Kaybedeni işaretle
                      currentRedCard: null, currentBlueCardInfo: null, votingInfo: null, // Temizlik
                      lastActionMessage: `🏆 Kazanan: ${winnerPlayer?.name || 'Biri'}!`
@@ -507,6 +508,7 @@ export const gameReducer = (state, action) => {
                 // Kümülatif statları koru, oyun özel olanları sıfırla
                 stats: { ...state.stats, tasksCompleted: {}, tasksDelegated: {}, blackCardsDrawn: {}, votableTasksWon: {} },
                 players: resetPlayers, redDeck: initialRedDeck, blueDeck: initialBlueDeck, blackDeck: initialBlackDeck,
+                targetScore: state.targetScore,
                 gamePhase: 'initialBlueCardReveal', revealingPlayerIndex: 0, currentPlayerIndex: 0,
                 message: `${resetPlayers[0]?.name || ''}, sıra sende. Tekrar başlıyoruz! Mavi Kartına bak.`,
                 lastActionMessage: "Yeni oyun başladı!",

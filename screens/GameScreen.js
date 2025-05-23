@@ -31,53 +31,77 @@ import { COLORS, SIZES } from '../constants/theme';
 /*                                SCOREBOARD                                  */
 /* -------------------------------------------------------------------------- */
 
-const Scoreboard = React.memo(({ players, currentPlayerId }) => {
-  const safePlayers = Array.isArray(players) ? players : [];
+// Extract player score item into separate component for better memo
+const PlayerScoreItem = React.memo(({ player, isActive }) => {
+  if (!player || typeof player !== 'object' || player.id === undefined) return null;
+
+  const playerName = player.name || `Oyuncu ${player.id}`;
+  const avatar = player.avatarId || '👤';
+  const score = player.score ?? 0;
+
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.scoreboardContent}
-      style={styles.scoreboardContainer}
+    <View
+      style={[styles.scoreColumn, isActive && styles.activePlayerColumn]}
     >
-      {safePlayers.map((player) => {
-        if (!player || typeof player !== 'object' || player.id === undefined)
-          return null;
-
-        const isActive = player.id === currentPlayerId;
-        const playerName = player.name || `Oyuncu ${player.id}`;
-        const avatar = player.avatarId || '👤';
-        const score = player.score ?? 0;
-
-        return (
-          <View
-            key={player.id}
-            style={[styles.scoreColumn, isActive && styles.activePlayerColumn]}
-          >
-            {isActive && (
-              <View style={styles.turnIndicatorIconWrapper}>
-                <Ionicons
-                  name="caret-down"
-                  size={SIZES.iconSizeSmall}
-                  color={COLORS.activePlayerHighlight}
-                />
-              </View>
-            )}
-            <Text style={styles.avatarTextScoreboard}>{avatar}</Text>
-            <Text
-              style={[styles.scoreText, isActive && styles.activePlayerText]}
-              numberOfLines={1}
-            >
-              {playerName.length > 8
-                ? `${playerName.substring(0, 8)}…`
-                : playerName}
-            </Text>
-            <Text style={styles.scorePoints}>{score}</Text>
-          </View>
-        );
-      })}
-    </ScrollView>
+      {isActive && (
+        <View style={styles.turnIndicatorIconWrapper}>
+          <Ionicons
+            name="caret-down"
+            size={SIZES.iconSizeSmall}
+            color={COLORS.activePlayerHighlight}
+          />
+        </View>
+      )}
+      <Text style={styles.avatarTextScoreboard}>{avatar}</Text>
+      <Text
+        style={[styles.scoreText, isActive && styles.activePlayerText]}
+        numberOfLines={1}
+      >
+        {playerName.length > 8
+          ? `${playerName.substring(0, 8)}…`
+          : playerName}
+      </Text>
+      <Text style={styles.scorePoints}>{score}</Text>
+    </View>
   );
+});
+
+const Scoreboard = React.memo(({ players, currentPlayerId, targetScore }) => {
+  const safePlayers = useMemo(() => Array.isArray(players) ? players : [], [players]);
+  
+  return (
+    <View style={styles.scoreboardWrapper}>
+      <Text style={styles.targetScoreText}>Hedef: {targetScore} puan</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.scoreboardContent}
+        style={styles.scoreboardContainer}
+        removeClippedSubviews={true}
+      >
+        {safePlayers.map((player) => (
+          <PlayerScoreItem 
+            key={player.id}
+            player={player}
+            isActive={player.id === currentPlayerId}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}, (prevProps, nextProps) => {
+  // Only re-render when active player changes, scores change, or target score changes
+  if (prevProps.currentPlayerId !== nextProps.currentPlayerId) return false;
+  if (prevProps.targetScore !== nextProps.targetScore) return false;
+  
+  if (!prevProps.players || !nextProps.players || 
+      prevProps.players.length !== nextProps.players.length) return false;
+      
+  // Check if any player scores changed
+  for (let i = 0; i < prevProps.players.length; i++) {
+    if (prevProps.players[i].score !== nextProps.players[i].score) return false;
+  }
+  return true;
 });
 
 /* -------------------------------------------------------------------------- */
@@ -100,6 +124,7 @@ const GameScreen = ({ navigation }) => {
     selectedPlayerForTask = null,
     revealingPlayerIndex = 0,
     votingInfo = null,
+    targetScore = 0,
   } = gameState || {};
 
   /* ---------------------------------------------------------------------- */
@@ -162,6 +187,17 @@ const GameScreen = ({ navigation }) => {
   }, [navigation, gamePhase]);
 
   /* ---------------------------------------------------------------------- */
+  /*                     PERFORMANCE OPTIMIZATIONS                          */
+  /* ---------------------------------------------------------------------- */
+  // Clean up memory and resources when component unmounts
+  useEffect(() => {
+    // On component unmount, cleanup any resources
+    return () => {
+      // Remove any potential listeners or timers
+    };
+  }, []);
+
+  /* ---------------------------------------------------------------------- */
   /*                        DERIVED PLAYER  STATE                           */
   /* ---------------------------------------------------------------------- */
   const activePlayerId = useMemo(() => {
@@ -178,7 +214,6 @@ const GameScreen = ({ navigation }) => {
     [players, activePlayerId],
   );
 
-  // Filter out the active player, rather than using index‑based comparison.
   const otherPlayers = useMemo(
     () => players.filter((p) => p.id !== activePlayerId),
     [players, activePlayerId],
@@ -286,13 +321,149 @@ const GameScreen = ({ navigation }) => {
   }, [currentBlueCardInfo, currentRedCard, gamePhase]);
 
   /* ---------------------------------------------------------------------- */
-  /*                           RENDER CALLBACKS                             */
+  /*                           PRE-COMPUTE VOTING DATA                      */
   /* ---------------------------------------------------------------------- */
+  // Move hooks out of render functions to top level
+  const voters = useMemo(() => 
+    votingInfo ? players.filter((p) => p.id !== votingInfo.performerId) : [],
+    [players, votingInfo]
+  );
+  
+  const performer = useMemo(() => 
+    votingInfo ? players.find((p) => p.id === votingInfo.performerId) : null,
+    [players, votingInfo]
+  );
+  
+  const handleVote = useCallback((voterId, voteType) => {
+    if (actions?.castVote) {
+      actions.castVote(voterId, voteType);
+    }
+  }, [actions]);
 
+  /* ---------------------------------------------------------------------- */
+  /*                      PRE-COMPUTE PLAYER SELECTION DATA                 */
+  /* ---------------------------------------------------------------------- */
+  const currentUserId = players[currentPlayerIndex]?.id;
+  
+  const selectablePlayers = useMemo(() => 
+    players.filter(
+      (p) => p.id !== currentUserId && p.blueCard && p.blueCard !== 'Deste Bitti!'
+    ),
+    [players, currentUserId]
+  );
+
+  const handleSelectPlayer = useCallback((playerId) => {
+    if (actions?.selectPlayerForTask) {
+      actions.selectPlayerForTask(playerId);
+    }
+  }, [actions]);
+
+  const taskText = useMemo(() => 
+    String(currentRedCard?.text || '...'),
+    [currentRedCard]
+  );
+
+  /* ---------------------------------------------------------------------- */
+  /*                               LAYOUT  SIZES                             */
+  /* ---------------------------------------------------------------------- */
+  // Precompute layout sizes to avoid recalculations on each render
+  const layoutSizes = useMemo(() => {
+    const cardWidth = Math.min(windowWidth * CARD_WIDTH_PERCENTAGE, CARD_MAX_WIDTH);
+    return {
+      responsiveCardWidth: cardWidth,
+      responsiveCardHeight: cardWidth * CARD_ASPECT_RATIO,
+      buttonContainerMaxWidth: Math.min(windowWidth * 0.95, SIZES.buttonMaxWidth),
+      messageContainerMaxWidth: Math.min(windowWidth * 0.9, SIZES.contentMaxWidth)
+    };
+  }, [windowWidth]);
+
+  /* ---------------------------------------------------------------------- */
+  /*                          VISIBILITY FLAGS                               */
+  /* ---------------------------------------------------------------------- */
+  const visibilityFlags = useMemo(() => ({
+    showCardArea: !['voting', 'selectingPlayer'].includes(gamePhase),
+    showVotingArea: gamePhase === 'voting',
+    showSelectionArea: gamePhase === 'selectingPlayer',
+    showActionButtons: ![
+      'voting',
+      'selectingPlayer',
+      'ended',
+      'assigningBlackCard',
+    ].includes(gamePhase)
+  }), [gamePhase]);
+
+  /* ---------------------------------------------------------------------- */
+  /*                           RENDER COMPONENTS                            */
+  /* ---------------------------------------------------------------------- */
+  // Extract player score item into separate component for better memo
+  const VoterRow = React.memo(({ voter, currentVote, onVoteYes, onVoteNo }) => {
+    const hasVoted = currentVote !== null && currentVote !== undefined;
+    
+    return (
+      <View style={styles.voterRow}>
+        <Text style={styles.voterAvatar}>{voter.avatarId || '👤'}</Text>
+        <Text style={styles.voterName} numberOfLines={1}>
+          {voter.name}
+        </Text>
+        <View style={styles.voteButtons}>
+          <TouchableOpacity
+            style={[
+              styles.voteButtonBase,
+              styles.voteYes,
+              hasVoted && currentVote !== 'yes' && styles.voteDisabled,
+            ]}
+            onPress={onVoteYes}
+            disabled={hasVoted}
+            activeOpacity={0.7}
+          >
+            {currentVote === 'yes' ? (
+              <Ionicons name="checkmark-circle" size={SIZES.iconSizeLarge * 1.2} color={COLORS.white} />
+            ) : (
+              <Ionicons name="thumbs-up-outline" size={SIZES.iconSizeLarge} color={COLORS.white} />
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.voteButtonBase,
+              styles.voteNo,
+              hasVoted && currentVote !== 'no' && styles.voteDisabled,
+            ]}
+            onPress={onVoteNo}
+            disabled={hasVoted}
+            activeOpacity={0.7}
+          >
+            {currentVote === 'no' ? (
+              <Ionicons name="close-circle" size={SIZES.iconSizeLarge * 1.2} color={COLORS.white} />
+            ) : (
+              <Ionicons name="thumbs-down-outline" size={SIZES.iconSizeLarge} color={COLORS.white} />
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  });
+
+  // Memoized player selection item
+  const PlayerSelectionItem = React.memo(({ player, onSelectPlayer }) => (
+    <TouchableOpacity
+      style={styles.playerSelectCard}
+      onPress={() => onSelectPlayer(player.id)}
+      activeOpacity={0.8}
+    >
+      <Text style={styles.playerSelectAvatar}>{player.avatarId || '👤'}</Text>
+      <Text style={styles.playerSelectName} numberOfLines={1}>
+        {player.name}
+      </Text>
+      <Ionicons name="chevron-forward-outline" size={SIZES.iconSize} color={COLORS.accentLight} />
+    </TouchableOpacity>
+  ));
+
+  /* ---------------------------------------------------------------------- */
+  /*                           RENDER FUNCTIONS                             */
+  /* ---------------------------------------------------------------------- */
   const renderVotingUI = useCallback(() => {
     if (!votingInfo || !players || !actions?.castVote) return null;
-
-    const voters = players.filter((p) => p.id !== votingInfo.performerId);
+    
     if (voters.length === 0) {
       return (
         <View style={styles.flexCenter}>
@@ -301,8 +472,7 @@ const GameScreen = ({ navigation }) => {
         </View>
       );
     }
-
-    const performer = players.find((p) => p.id === votingInfo.performerId);
+    
     const taskText = votingInfo.taskText;
     const votes = votingInfo.votes;
 
@@ -318,67 +488,28 @@ const GameScreen = ({ navigation }) => {
         >
           "{taskText}"
         </Text>
-        <ScrollView style={styles.votingScroll} contentContainerStyle={styles.votingList}>
-          {voters.map((voter) => {
-            const currentVote = votes[voter.id];
-            const hasVoted = currentVote !== null && currentVote !== undefined;
-
-            return (
-              <View key={voter.id} style={styles.voterRow}>
-                <Text style={styles.voterAvatar}>{voter.avatarId || '👤'}</Text>
-                <Text style={styles.voterName} numberOfLines={1}>
-                  {voter.name}
-                </Text>
-                <View style={styles.voteButtons}>
-                  <TouchableOpacity
-                    style={[
-                      styles.voteButtonBase,
-                      styles.voteYes,
-                      hasVoted && currentVote !== 'yes' && styles.voteDisabled,
-                    ]}
-                    onPress={() => actions.castVote(voter.id, 'yes')}
-                    disabled={hasVoted}
-                    activeOpacity={0.7}
-                  >
-                    {currentVote === 'yes' ? (
-                      <Ionicons name="checkmark-circle" size={SIZES.iconSizeLarge * 1.2} color={COLORS.white} />
-                    ) : (
-                      <Ionicons name="thumbs-up-outline" size={SIZES.iconSizeLarge} color={COLORS.white} />
-                    )}
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.voteButtonBase,
-                      styles.voteNo,
-                      hasVoted && currentVote !== 'no' && styles.voteDisabled,
-                    ]}
-                    onPress={() => actions.castVote(voter.id, 'no')}
-                    disabled={hasVoted}
-                    activeOpacity={0.7}
-                  >
-                    {currentVote === 'no' ? (
-                      <Ionicons name="close-circle" size={SIZES.iconSizeLarge * 1.2} color={COLORS.white} />
-                    ) : (
-                      <Ionicons name="thumbs-down-outline" size={SIZES.iconSizeLarge} color={COLORS.white} />
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            );
-          })}
+        <ScrollView 
+          style={styles.votingScroll} 
+          contentContainerStyle={styles.votingList}
+          removeClippedSubviews={true}
+        >
+          {voters.map((voter) => (
+            <VoterRow
+              key={voter.id}
+              voter={voter}
+              currentVote={votes[voter.id]}
+              onVoteYes={() => handleVote(voter.id, 'yes')}
+              onVoteNo={() => handleVote(voter.id, 'no')}
+            />
+          ))}
         </ScrollView>
         <Text style={styles.votingStatusText}>{message || ''}</Text>
       </View>
     );
-  }, [votingInfo, players, actions, message]);
+  }, [votingInfo, voters, performer, message, handleVote]);
 
   const renderPlayerSelectionUI = useCallback(() => {
     if (!players || !actions?.selectPlayerForTask || !actions?.cancelPlayerSelection) return null;
-
-    const currentUserId = players[currentPlayerIndex]?.id;
-    const selectablePlayers = players.filter(
-      (p) => p.id !== currentUserId && p.blueCard && p.blueCard !== 'Deste Bitti!',
-    );
 
     if (selectablePlayers.length === 0) {
       return (
@@ -398,8 +529,6 @@ const GameScreen = ({ navigation }) => {
       );
     }
 
-    const taskText = String(currentRedCard?.text || '...');
-
     return (
       <View style={styles.playerSelectionOuterContainer}>
         <Text style={styles.sectionTitle}>👥 Kimi Seçiyorsun?</Text>
@@ -408,20 +537,16 @@ const GameScreen = ({ navigation }) => {
           <Text style={styles.italicText}>"{taskText}"</Text>
           <Text>) hangi oyuncu yapsın?</Text>
         </Text>
-        <ScrollView style={styles.playerSelectionScroll}>
+        <ScrollView 
+          style={styles.playerSelectionScroll}
+          removeClippedSubviews={true}
+        >
           {selectablePlayers.map((player) => (
-            <TouchableOpacity
+            <PlayerSelectionItem 
               key={player.id}
-              style={styles.playerSelectCard}
-              onPress={() => actions.selectPlayerForTask(player.id)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.playerSelectAvatar}>{player.avatarId || '👤'}</Text>
-              <Text style={styles.playerSelectName} numberOfLines={1}>
-                {player.name}
-              </Text>
-              <Ionicons name="chevron-forward-outline" size={SIZES.iconSize} color={COLORS.accentLight} />
-            </TouchableOpacity>
+              player={player}
+              onSelectPlayer={handleSelectPlayer}
+            />
           ))}
         </ScrollView>
         <ActionButton
@@ -433,7 +558,7 @@ const GameScreen = ({ navigation }) => {
         />
       </View>
     );
-  }, [players, currentPlayerIndex, actions, currentRedCard?.text]);
+  }, [players, actions, selectablePlayers, taskText, handleSelectPlayer]);
 
   const renderActionButtons = useCallback(() => {
     if (!players || !actions) return null;
@@ -552,27 +677,6 @@ const GameScreen = ({ navigation }) => {
   }, [gamePhase, currentBlueCardInfo, currentRedCard, players, revealingPlayerIndex, currentPlayerIndex, selectedPlayerForTask, actions, otherPlayers, votingInfo]);
 
   /* ---------------------------------------------------------------------- */
-  /*                               LAYOUT  SIZES                             */
-  /* ---------------------------------------------------------------------- */
-  const responsiveCardWidth = Math.min(windowWidth * CARD_WIDTH_PERCENTAGE, CARD_MAX_WIDTH);
-  const responsiveCardHeight = responsiveCardWidth * CARD_ASPECT_RATIO;
-  const buttonContainerMaxWidth = Math.min(windowWidth * 0.95, SIZES.buttonMaxWidth);
-  const messageContainerMaxWidth = Math.min(windowWidth * 0.9, SIZES.contentMaxWidth);
-
-  /* ---------------------------------------------------------------------- */
-  /*                          VISIBILITY FLAGS                               */
-  /* ---------------------------------------------------------------------- */
-  const showCardArea = !['voting', 'selectingPlayer'].includes(gamePhase);
-  const showVotingArea = gamePhase === 'voting';
-  const showSelectionArea = gamePhase === 'selectingPlayer';
-  const showActionButtons = ![
-    'voting',
-    'selectingPlayer',
-    'ended',
-    'assigningBlackCard',
-  ].includes(gamePhase);
-
-  /* ---------------------------------------------------------------------- */
   /*                              MAIN  RENDER                               */
   /* ---------------------------------------------------------------------- */
   return (
@@ -589,7 +693,7 @@ const GameScreen = ({ navigation }) => {
         {/*                                TOP                               */}
         {/* ---------------------------------------------------------------- */}
         <View style={styles.topArea}>
-          <Scoreboard players={players} currentPlayerId={activePlayerId} />
+          <Scoreboard players={players} currentPlayerId={activePlayerId} targetScore={targetScore} />
         </View>
 
         {/* ---------------------------------------------------------------- */}
@@ -607,7 +711,7 @@ const GameScreen = ({ navigation }) => {
 
           {/* Main Stage */}
           <View style={styles.mainContentStage}>
-            {showCardArea && (
+            {visibilityFlags.showCardArea && (
               <View style={styles.cardDisplayArea}>
                 <Card
                   type={cardDisplayData.type}
@@ -615,16 +719,16 @@ const GameScreen = ({ navigation }) => {
                   isVisible={cardDisplayData.isVisible}
                   key={cardDisplayData.cardKey}
                   faceDownContextType={cardDisplayData.faceDownContextType}
-                  style={[{ width: responsiveCardWidth, height: responsiveCardHeight }, styles.enhancedCard]}
+                  style={[{ width: layoutSizes.responsiveCardWidth, height: layoutSizes.responsiveCardHeight }, styles.enhancedCard]}
                 />
               </View>
             )}
-            {showVotingArea && renderVotingUI()}
-            {showSelectionArea && renderPlayerSelectionUI()}
+            {visibilityFlags.showVotingArea && renderVotingUI()}
+            {visibilityFlags.showSelectionArea && renderPlayerSelectionUI()}
           </View>
 
           {/* Main Message */}
-          <View style={[styles.messageContainer, { maxWidth: messageContainerMaxWidth }]}>
+          <View style={[styles.messageContainer, { maxWidth: layoutSizes.messageContainerMaxWidth }]}>
             <Text style={styles.messageText} numberOfLines={4}>
               {message || ' '}
             </Text>
@@ -634,8 +738,8 @@ const GameScreen = ({ navigation }) => {
         {/* ---------------------------------------------------------------- */}
         {/*                               BOTTOM                             */}
         {/* ---------------------------------------------------------------- */}
-        <View style={[styles.bottomArea, { maxWidth: buttonContainerMaxWidth }]}>
-          {showActionButtons && (
+        <View style={[styles.bottomArea, { maxWidth: layoutSizes.buttonContainerMaxWidth }]}>
+          {visibilityFlags.showActionButtons && (
             <View style={styles.actionButtonsContainer}>{renderActionButtons()}</View>
           )}
         </View>
@@ -698,24 +802,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: SIZES.base,
     width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    borderRadius: SIZES.inputRadius,
-    paddingHorizontal: SIZES.padding,
-    paddingVertical: SIZES.paddingSmall,
   },
   lastActionText: {
-    fontSize: SIZES.body * 0.95,
-    fontWeight: '600',
-    color: COLORS.accentLight,
+    fontSize: 16,
+    color: COLORS.action,
     textAlign: 'center',
-    fontFamily: SIZES.regular,
-    paddingHorizontal: SIZES.padding,
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    fontWeight: '600',
   },
   lastActionPlaceholder: {
-    height: 30,
+    height: 24,
   },
 
   /* MAIN STAGE */
@@ -773,15 +868,24 @@ const styles = StyleSheet.create({
 
   /* SCOREBOARD */
   scoreboardContainer: {
-    marginBottom: SIZES.marginSmall,
-    borderRadius: SIZES.cardRadius,
-    backgroundColor: 'rgba(0,0,0,0.2)',
+    width: '100%',
     paddingVertical: SIZES.paddingSmall,
   },
   scoreboardContent: {
-    paddingHorizontal: SIZES.paddingSmall,
-    paddingVertical: SIZES.paddingSmall * 0.5,
     alignItems: 'flex-end',
+    justifyContent: 'space-around',
+    paddingHorizontal: SIZES.paddingSmall,
+  },
+  scoreboardWrapper: {
+    width: '100%',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  targetScoreText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginBottom: 4,
   },
   scoreColumn: {
     alignItems: 'center',

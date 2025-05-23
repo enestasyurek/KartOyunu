@@ -30,6 +30,7 @@ const EndScreen = ({ navigation }) => {
     message: endScreenMessage,
     gamePhase,
     selectedPlayerForTask,
+    targetScore = 20,
   } = gameState;
 
   /* winner / loser / sorted list */
@@ -85,6 +86,7 @@ const EndScreen = ({ navigation }) => {
     try {
       let msg = 'Kart Oyunu Sonuçları\n\n';
       if (winner) msg += `🏆 Kazanan: ${winner.avatarId} ${winner.name} (${winner.score} Puan)\n`;
+      msg += `🎯 Hedef Puan: ${targetScore}\n`;
       if (loser) msg += `⚫️ Siyah Kart: ${loser.avatarId} ${loser.name}\n`;
       msg += '\nSkor Tablosu:\n';
       sortedPlayers.forEach((p, i) => {
@@ -94,7 +96,7 @@ const EndScreen = ({ navigation }) => {
     } catch (e) {
       console.error('share error', e);
     }
-  }, [sortedPlayers, winner, loser]);
+  }, [sortedPlayers, winner, loser, targetScore]);
 
   /* ────── RENDERERS ────── */
   const renderScoreRow = useCallback(
@@ -162,6 +164,7 @@ const EndScreen = ({ navigation }) => {
                   ? `🏆 Kazanan: ${winner.avatarId} ${winner.name} (${winner.score} Puan)`
                   : 'Kazanan Belirlenemedi'}
               </Text>
+              <Text style={styles.targetScoreText}>🎯 Hedef Puan: {targetScore}</Text>
             </View>
           </MotiView>
 
@@ -385,6 +388,15 @@ const styles = StyleSheet.create({
   actionButton: {
     width: '100%',
     marginBottom: SIZES.marginSmall * 1.25,
+  },
+
+  /* Target Score */
+  targetScoreText: {
+    fontSize: SIZES.body,
+    fontFamily: SIZES.regular,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: SIZES.marginSmall,
   },
 });
 

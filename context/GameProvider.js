@@ -11,7 +11,7 @@ import AchievementNotification from '../components/AchievementNotification';
 import Constants from 'expo-constants';
 
 // Sabitler
-const TARGET_SCORE = 20;
+// const TARGET_SCORE = 20; // Remove hardcoded target score
 const MAX_PLAYERS_ACHIEVEMENT = 6; // 'full_house' başarımı için limit
 
 // LayoutAnimation Android için
@@ -20,8 +20,36 @@ if ( Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimenta
 }
 // --- Context Tanımı ---
 export const GameContext = createContext(null);
+
 // --- Animasyon Yardımcısı ---
-const configureAnimation = (duration = 250) => { try { LayoutAnimation.configureNext( LayoutAnimation.create( duration, LayoutAnimation.Types.easeInEaseOut, LayoutAnimation.Properties.opacity )); } catch (error) {} };
+// Pre-configure animation configurations to avoid creating them on each call
+const ANIMATION_CONFIGS = {
+    default: LayoutAnimation.create(
+        250, 
+        LayoutAnimation.Types.easeInEaseOut, 
+        LayoutAnimation.Properties.opacity
+    ),
+    fast: LayoutAnimation.create(
+        150, 
+        LayoutAnimation.Types.easeInEaseOut, 
+        LayoutAnimation.Properties.opacity
+    ),
+    slow: LayoutAnimation.create(
+        350, 
+        LayoutAnimation.Types.easeInEaseOut, 
+        LayoutAnimation.Properties.opacity
+    )
+};
+
+// Improved animation configuration function
+const configureAnimation = (type = 'default') => { 
+    try { 
+        const config = ANIMATION_CONFIGS[type] || ANIMATION_CONFIGS.default;
+        LayoutAnimation.configureNext(config);
+    } catch (error) { 
+        // Silently fail if animations aren't supported
+    } 
+};
 
 // --- Ana Provider Componenti ---
 export const GameProvider = ({ children }) => {
@@ -86,9 +114,9 @@ export const GameProvider = ({ children }) => {
     // --- Oyun Akışı Aksiyonları ---
 
     // Oyun Kurulumu
-    const setupGame = useCallback((playerNames, customTasks = []) => {
+    const setupGame = useCallback((playerNames, customTasks = [], targetScore = 20) => {
         try {
-            dispatch({ type: 'SETUP_GAME', payload: { playerNames, customTasks } });
+            dispatch({ type: 'SETUP_GAME', payload: { playerNames, customTasks, targetScore } });
             triggerFeedback(Haptics.NotificationFeedbackType.Success, 'buttonClick');
             if (customTasks.length > 0) { unlockAchievement('custom_task_added'); }
              if (playerNames.length >= MAX_PLAYERS_ACHIEVEMENT) { unlockAchievement('full_house'); }
@@ -105,7 +133,7 @@ export const GameProvider = ({ children }) => {
                  dispatch({ type: 'SHOW_INITIAL_BLUE_CARD' }); // Reducer atlamayı handle eder
                  return;
              }
-             configureAnimation();
+             configureAnimation('default');
              dispatch({ type: 'SHOW_INITIAL_BLUE_CARD' });
              triggerFeedback(null, 'cardDraw');
         } catch(e) { logError('showInitialBlueCard', e); }
@@ -114,7 +142,7 @@ export const GameProvider = ({ children }) => {
     // Başlangıç Mavi Kartı Gizle ve Devam Et
     const hideInitialBlueCardAndProceed = useCallback(() => {
         try {
-            configureAnimation();
+            configureAnimation('default');
             dispatch({ type: 'HIDE_INITIAL_BLUE_CARD_AND_PROCEED' });
             triggerFeedback(Haptics.ImpactFeedbackStyle.Light, 'turnChange');
         } catch(e) { logError('hideInitialBlueCardAndProceed', e); }
@@ -130,7 +158,7 @@ export const GameProvider = ({ children }) => {
                  triggerFeedback(Haptics.NotificationFeedbackType.Warning, 'error'); // Hata sesi
                  dispatch({ type: 'DRAW_RED_CARD' }); // Reducer'ın deste boş durumunu işlemesini sağla
              } else {
-                  configureAnimation();
+                  configureAnimation('default');
                   dispatch({ type: 'DRAW_RED_CARD' });
                   triggerFeedback(null, 'cardDraw');
               }
@@ -155,7 +183,7 @@ export const GameProvider = ({ children }) => {
                  console.warn(`Invalid vote attempt by ${voterId}. VotingInfo: ${!!currentVotingInfo}, CurrentVote: ${currentVotingInfo?.votes?.[voterId]}`);
                  return;
              }
-             configureAnimation(150);
+             configureAnimation('fast');
              triggerFeedback(Haptics.ImpactFeedbackStyle.Light, 'buttonClick');
              // Reducer oylamayı işleyecek ve gerekirse sonuçları hesaplayıp state'i güncelleyecek
              dispatch({ type: 'CAST_VOTE', payload: { voterId, vote } });
@@ -206,7 +234,15 @@ export const GameProvider = ({ children }) => {
     }, [gameState, handleTaskCompletion, unlockAchievement, triggerFeedback, logError]); // nextTurn bağımlılığı kaldırıldı
 
      // Karar: "O Yapsın" Başlangıç
-    const delegateTaskStart = useCallback(() => { try { configureAnimation(); dispatch({ type: 'START_DELEGATION' }); triggerFeedback(null, 'buttonClick'); } catch (e) { logError('delegateTaskStart', e); } }, [dispatch, triggerFeedback, logError]);
+    const delegateTaskStart = useCallback(() => { 
+        try { 
+            configureAnimation('default'); 
+            dispatch({ type: 'START_DELEGATION' }); 
+            triggerFeedback(null, 'buttonClick'); 
+        } catch (e) { 
+            logError('delegateTaskStart', e); 
+        } 
+    }, [dispatch, triggerFeedback, logError]);
 
      // Karar: "O Yapsın" Oyuncu Seçimi
      const selectPlayerForTask = useCallback((selectedPlayerId) => {
@@ -220,14 +256,22 @@ export const GameProvider = ({ children }) => {
                  // dispatch({ type: 'GO_TO_PHASE', payload: { phase: 'decision', message:"Seçilen oyuncunun Mavi Kartı yok veya geçersiz." } }); // Bu state'i geri sarar, belki istenmez.
                  return;
              }
-             configureAnimation();
+             configureAnimation('default');
              dispatch({ type: 'SELECT_PLAYER_FOR_TASK', payload: { selectedPlayerId } });
              triggerFeedback(null, 'cardDraw');
         } catch(e) { logError('selectPlayerForTask', e); }
      }, [gameState.players, dispatch, triggerFeedback, logError]);
 
     // Karar: "O Yapsın" Vazgeçme
-    const cancelPlayerSelection = useCallback(() => { try { configureAnimation(); dispatch({ type: 'CANCEL_SELECTION_RETURN_TO_DECISION' }); triggerFeedback(null, 'buttonClick'); } catch(e) { logError('cancelPlayerSelection', e); } }, [dispatch, triggerFeedback, logError]);
+    const cancelPlayerSelection = useCallback(() => { 
+        try { 
+            configureAnimation('default'); 
+            dispatch({ type: 'CANCEL_SELECTION_RETURN_TO_DECISION' }); 
+            triggerFeedback(null, 'buttonClick'); 
+        } catch(e) { 
+            logError('cancelPlayerSelection', e); 
+        } 
+    }, [dispatch, triggerFeedback, logError]);
 
      // Delegasyon: Devreden Mavi'yi Yaptı
      const delegatorDidBlueTask = useCallback(() => {
@@ -237,7 +281,7 @@ export const GameProvider = ({ children }) => {
              const currentDelegateCount = gameState.stats?.tasksDelegated?.[currentPlayer.id] || 0;
              if(currentDelegateCount + 1 >= 3){ unlockAchievement('delegator_master'); }
              unlockAchievement('blue_master');
-             configureAnimation();
+             configureAnimation('default');
              dispatch({ type: 'DELEGATOR_COMPLETE_BLUE' }); // Reducer fazı 'redCardForSelected' yapacak
              triggerFeedback(Haptics.NotificationFeedbackType.Success, 'scorePoint');
              
@@ -268,7 +312,7 @@ export const GameProvider = ({ children }) => {
      const confirmCloseNewBlueCard = useCallback(() => {
         try {
             // const delegatorIndex = gameState.currentPlayerIndex; // Artık nextTurn için gerekmiyor
-            configureAnimation();
+            configureAnimation('default');
             // Reducer kartı kapatıp sırayı geçirecek
             dispatch({ type: 'CONFIRM_CLOSE_NEW_BLUE_CARD' });
             triggerFeedback(Haptics.ImpactFeedbackStyle.Light, 'buttonClick');
@@ -285,13 +329,13 @@ export const GameProvider = ({ children }) => {
            console.log("--- Provider: endGame fonksiyonu çağrıldı (istatistik/başarım için) ---");
            updateStat('gamesPlayed');
            const winnerPlayer = gameState.players.reduce((max, p) => (p.score || 0) > (max.score || 0) ? p : max, gameState.players[0]);
-           if(winnerPlayer && winnerPlayer.score >= TARGET_SCORE) { updateStat('wins', 1, winnerPlayer.id); unlockAchievement('first_win'); }
+           if(winnerPlayer && winnerPlayer.score >= gameState.targetScore) { updateStat('wins', 1, winnerPlayer.id); unlockAchievement('first_win'); }
            unlockAchievement('first_game');
            // Reducer'a geçiş yapmasını söylemek yerine, reducer zaten 'ending' fazına geçti.
            // dispatch({ type: 'TRIGGER_END_GAME' }); // Bu artık useEffect'ten tetikleniyor
            triggerFeedback(Haptics.NotificationFeedbackType.Success, 'gameEnd'); // Bu ses belki 'ending' fazına geçince çalmalı
        } catch(error) { logError('endGame Logic', error); }
-    }, [gameState.players, updateStat, unlockAchievement, triggerFeedback, logError, dispatch]); // dispatch eklendi (gerçi kullanılmıyor artık)
+    }, [gameState.players, updateStat, unlockAchievement, triggerFeedback, logError, dispatch, gameState.targetScore]); // dispatch eklendi (gerçi kullanılmıyor artık)
 
     // Siyah Kart Çek ve Bitir
     const assignAndFinishBlackCard = useCallback(() => {
@@ -314,16 +358,14 @@ export const GameProvider = ({ children }) => {
        const currentPhase = gameState.gamePhase;
         // console.log(`--- Provider Phase Check Effect --- Phase: ${currentPhase}`); // Anlık fazı logla
 
-       const shouldCheckWin = [
-            'playing', 'decision', 'redCardForSelected', 'showingNewBlueCard', 'voting', 'voteResultDisplay' // Olası yeni ara faz
-            // initialBlueCardReveal, selectingPlayer, revealingBlueCard fazlarında henüz skor değişimi olmaz
-        ].includes(currentPhase);
+       const shouldCheckWin = gameState.players && Array.isArray(gameState.players) && gameState.players.length > 0 && 
+           ['playing', 'decision', 'showingNewBlueCard'].includes(currentPhase); // Kazanma kontrolü yapılabilecek fazlar
 
         if (shouldCheckWin) {
-           const winner = gameState.players.find(p => (p.score || 0) >= TARGET_SCORE);
+           const winner = gameState.players.find(p => (p.score || 0) >= gameState.targetScore);
            if (winner && !['ending', 'assigningBlackCard', 'ended'].includes(currentPhase)) {
                 console.log(`>>> useEffect [Game End Check]: Winner found! Dispatching END_GAME_CHECK.`);
-                 dispatch({ type: 'END_GAME_CHECK' }); // Reducer fazı 'ending' yapabilir
+                 dispatch({ type: 'END_GAME_CHECK' });
            }
        } else if (currentPhase === 'ending') {
            // Eğer 'ending' fazına geçildiyse endGame fonksiyonunu çağır (sadece stat/başarım için)
@@ -331,7 +373,7 @@ export const GameProvider = ({ children }) => {
            endGame(); // Bu artık TRIGGER_END_GAME dispatch etmiyor, sadece stat güncelliyor. Reducer zaten 'assigningBlackCard'a geçiyor.
        }
 
-   }, [gameState.gamePhase, gameState.players, endGame]); // endGame bağımlılığı doğru
+   }, [gameState.players, gameState.gamePhase, gameState.targetScore, endGame]); // endGame bağımlılığı doğru
 
     // Başarım Bildirimleri
    useEffect(() => {

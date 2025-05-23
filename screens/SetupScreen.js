@@ -16,6 +16,9 @@ import { AVATARS, getRandomAvatar } from '../constants/avatars';
 // Constants
 const MAX_PLAYERS = 6;
 const MAX_CUSTOM_TASKS = 5;
+const DEFAULT_TARGET_SCORE = 20;
+const MIN_TARGET_SCORE = 10;
+const MAX_TARGET_SCORE = 50;
 
 // Component for a single player row with name input and avatar
 const PlayerItem = ({ 
@@ -136,6 +139,57 @@ const PlayerCounter = ({ count, onDecrease, onIncrease, maxPlayers }) => (
     </View>
 );
 
+// Component for target score selector
+const ScoreSelector = ({ value, onDecrease, onIncrease, minScore, maxScore }) => (
+    <View style={styles.counterContainer}>
+        <TouchableOpacity
+            style={[styles.counterBtn, value <= minScore && styles.counterBtnDisabled]}
+            onPress={onDecrease} 
+            disabled={value <= minScore} 
+            activeOpacity={0.7}
+            accessibilityLabel="Hedef puanı azalt"
+            accessibilityHint={value <= minScore ? "Minimum puana ulaşıldı" : "Hedef puanı azaltmak için dokunun"}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: value <= minScore }}
+        >
+            <Ionicons 
+                name="remove" 
+                size={22} 
+                color={value <= minScore ? COLORS.textMuted : COLORS.textPrimary} 
+            />
+        </TouchableOpacity>
+        
+        <MotiView
+            key={`score-${value}`}
+            from={{ scale: 0.9, opacity: 0.8 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: 'spring', damping: 15 }}
+            accessible={true}
+            accessibilityLabel={`${value} puan`}
+            style={styles.counterTextContainer}
+        >
+            <Text style={styles.counterText}>{value}</Text>
+        </MotiView>
+        
+        <TouchableOpacity
+            style={[styles.counterBtn, value >= maxScore && styles.counterBtnDisabled]}
+            onPress={onIncrease} 
+            disabled={value >= maxScore} 
+            activeOpacity={0.7}
+            accessibilityLabel="Hedef puanı artır"
+            accessibilityHint={value >= maxScore ? "Maksimum puana ulaşıldı" : "Hedef puanı artırmak için dokunun"}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: value >= maxScore }}
+        >
+            <Ionicons 
+                name="add" 
+                size={22} 
+                color={value >= maxScore ? COLORS.textMuted : COLORS.textPrimary} 
+            />
+        </TouchableOpacity>
+    </View>
+);
+
 // Component for a single custom task item
 const TaskItem = ({ task, index, onRemove }) => (
     <MotiView
@@ -196,6 +250,7 @@ const SetupScreen = ({ navigation }) => {
     const [newTask, setNewTask] = useState('');
     const [customTasksList, setCustomTasksList] = useState([]);
     const [focusedInput, setFocusedInput] = useState(null);
+    const [targetScore, setTargetScore] = useState(DEFAULT_TARGET_SCORE);
 
     // Refs
     const nameInputsRef = useRef([]);
@@ -301,6 +356,20 @@ const SetupScreen = ({ navigation }) => {
         });
     }, []);
 
+    // Target score handlers
+    const handleTargetScoreChange = useCallback((change) => {
+        Keyboard.dismiss();
+        const newScore = Math.max(MIN_TARGET_SCORE, Math.min(MAX_TARGET_SCORE, targetScore + change));
+        if (newScore !== targetScore) {
+            setTargetScore(newScore);
+            
+            // Provide haptic feedback if available
+            if (Platform.OS === 'ios' && AccessibilityInfo) {
+                AccessibilityInfo.announceForAccessibility(`Hedef puan ${newScore} olarak değiştirildi`);
+            }
+        }
+    }, [targetScore]);
+
     // Task management handlers
     const handleAddTask = useCallback(() => {
         const trimmedTask = newTask.trim();
@@ -361,7 +430,7 @@ const SetupScreen = ({ navigation }) => {
         } else {
             startGameWithFinalData();
         }
-    }, [players, customTasksList]);
+    }, [players, customTasksList, targetScore]);
 
     const startGameWithFinalData = () => {
         try {
@@ -371,7 +440,7 @@ const SetupScreen = ({ navigation }) => {
             );
             
             // Setup game with context action
-            actions.setupGame(finalPlayerNames, customTasksList);
+            actions.setupGame(finalPlayerNames, customTasksList, targetScore);
             
             // Navigate to game screen
             navigation.replace('Game');
@@ -466,6 +535,21 @@ const SetupScreen = ({ navigation }) => {
                                 <Ionicons name="help-circle" size={26} color={COLORS.accentLight} />
                             </TouchableOpacity>
                         </View>
+
+                        {/* Target Score Section */}
+                        <Section 
+                            title="Hedef Puan" 
+                            subtitle="Oyunun biteceği puanı seç"
+                            delay={100}
+                        >
+                            <ScoreSelector 
+                                value={targetScore}
+                                onDecrease={() => handleTargetScoreChange(-5)}
+                                onIncrease={() => handleTargetScoreChange(5)}
+                                minScore={MIN_TARGET_SCORE}
+                                maxScore={MAX_TARGET_SCORE}
+                            />
+                        </Section>
 
                         {/* Player Count Section */}
                         <Section 

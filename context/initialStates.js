@@ -23,6 +23,7 @@ export const initialGameState = {
     redDeck: [],                 // Kırmızı kart destesi
     blueDeck: [],                // Mavi kart destesi
     blackDeck: [],               // Siyah kart destesi
+    targetScore: 20,             // Oyunun biteceği hedef puan (kullanıcı tarafından değiştirilebilir)
 
     currentRedCard: null,        // Şu an aktif olan kırmızı kart objesi { text, id, votable, isCustom, isVisible }
     currentBlueCardInfo: null,   // Gösterilen mavi kart bilgisi { text, isVisible, forPlayerId, forPlayerName }

@@ -1,7 +1,7 @@
 // --- START OF FILE App.js ---
 
 // App.js - Main Application Setup
-import React from 'react';
+import React, { useCallback } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator, CardStyleInterpolators } from '@react-navigation/stack';
 import { StatusBar, View, Text, StyleSheet, Alert } from 'react-native'; // Alert eklendi
@@ -88,9 +88,9 @@ const AppNavigator = () => (
 
 // --- App Content Wrapper ---
 // Uygulama içeriğini Error Boundary ile sarar
-const AppContent = () => {
+const AppContent = React.memo(() => {
     // ErrorBoundary için Retry (Tekrar Dene) fonksiyonu
-    const handleRetry = () => {
+    const handleRetry = useCallback(() => {
         console.warn("ErrorBoundary Retry triggered!");
         // Geliştirme modunda uygulamayı yeniden yükle
         if (__DEV__) {
@@ -110,14 +110,14 @@ const AppContent = () => {
         
               Alert.alert("Hata Giderilemedi", "Lütfen uygulamayı kapatıp yeniden açın.");
           }
-      };
+      }, []);
 
     return (
         <ErrorBoundary onRetry={handleRetry}>
             <AppNavigator />
         </ErrorBoundary>
     );
-}
+});
 
 // --- Main App Component ---
 // Uygulamanın ana giriş noktası

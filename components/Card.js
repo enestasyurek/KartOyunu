@@ -25,7 +25,41 @@ const CARD_THEMES = {
 };
 
 // --- SIZING --- Standard playing card aspect ratio is 2.5" × 3.5" (≈1:1.4)
-const CARD_RATIO = 0.71; // width : height
+export const CARD_RATIO = 0.71; // width : height
+export const CARD_WIDTH_PERCENTAGE = 0.75;
+export const CARD_MAX_WIDTH = 300;
+export const CARD_ASPECT_RATIO = CARD_RATIO;
+
+// Memoized card front component to prevent recreation on each render
+const CardFront = React.memo(({ type, text, cardTextStyle }) => (
+  <LinearGradient
+    colors={CARD_THEMES[type]?.bg || CARD_THEMES.kapalı.bg}
+    style={styles.cardFront}
+  >
+    <Text
+      style={[styles.cardText, { color: CARD_THEMES[type]?.text || CARD_THEMES.kapalı.text }, cardTextStyle]}
+      numberOfLines={3}
+      adjustsFontSizeToFit
+    >
+      {String(text)}
+    </Text>
+  </LinearGradient>
+));
+
+// Memoized card back component
+const CardBack = React.memo(({ cardBackSource, cardWidth, cardHeight }) => (
+  <View style={styles.cardBackInner}>
+    <Image
+      source={cardBackSource}
+      style={{
+        width: cardWidth - 4, // Account for the border thickness
+        height: cardHeight - 4,
+        borderRadius: 10,
+      }}
+      resizeMode="stretch"
+    />
+  </View>
+));
 
 /**
  * Card
@@ -40,7 +74,7 @@ const CARD_RATIO = 0.71; // width : height
  * @param {string} props.accessibilityLabel - Custom accessibility label
  * @param {string} props.testID - ID used for testing
  */
-const Card = ({
+const Card = React.memo(({
   type = 'kapalı',
   text = '',
   isVisible = false,
@@ -54,43 +88,13 @@ const Card = ({
   const { width: screenWidth } = useWindowDimensions();
 
   // Prevent unnecessary re-calculations on every rerender
-  const cardWidth = useMemo(() => Math.min(screenWidth * 0.75, 300), [screenWidth]);
+  const cardWidth = useMemo(() => Math.min(screenWidth * CARD_WIDTH_PERCENTAGE, CARD_MAX_WIDTH), [screenWidth]);
   const cardHeight = useMemo(() => cardWidth / CARD_RATIO, [cardWidth]);
 
   if (!isVisible) return null; // Early return saves work
 
   const isCardBack = type === 'kapalı';
   const cardBackSource = faceDownContextType === 'red' ? redCardImage : blueCardImage;
-
-  // --- INTERNAL RENDERERS ---
-  const renderCardFront = () => (
-    <LinearGradient
-      colors={CARD_THEMES[type]?.bg || CARD_THEMES.kapalı.bg}
-      style={styles.cardFront}
-    >
-      <Text
-        style={[styles.cardText, { color: CARD_THEMES[type]?.text || CARD_THEMES.kapalı.text }]}
-        numberOfLines={3}
-        adjustsFontSizeToFit
-      >
-        {String(text)}
-      </Text>
-    </LinearGradient>
-  );
-
-  const renderCardBack = () => (
-    <View style={styles.cardBackInner}>
-      <Image
-        source={cardBackSource}
-        style={{
-          width: cardWidth - 4, // Account for the border thickness
-          height: cardHeight - 4,
-          borderRadius: 10,
-        }}
-        resizeMode="stretch"
-      />
-    </View>
-  );
 
   return (
     <Pressable
@@ -102,17 +106,30 @@ const Card = ({
         disabled && styles.disabled,
         style,
       ]}
-      android_ripple={{ color: '#ffffff20', borderless: true }}
-      accessibilityRole="button"
+      android_ripple={onPress ? { color: '#ffffff20', borderless: true } : null}
+      accessibilityRole={onPress ? "button" : "image"}
       accessibilityLabel={
         accessibilityLabel || (isCardBack ? 'Yüzü kapalı kart' : `Kart: ${String(text)}`)
       }
       testID={testID}
     >
-      {isCardBack ? renderCardBack() : renderCardFront()}
+      {isCardBack ? 
+        <CardBack cardBackSource={cardBackSource} cardWidth={cardWidth} cardHeight={cardHeight} /> : 
+        <CardFront type={type} text={text} />
+      }
     </Pressable>
   );
-};
+}, (prevProps, nextProps) => {
+  // Custom comparison for memoization
+  return (
+    prevProps.type === nextProps.type &&
+    prevProps.text === nextProps.text &&
+    prevProps.isVisible === nextProps.isVisible &&
+    prevProps.faceDownContextType === nextProps.faceDownContextType &&
+    prevProps.disabled === nextProps.disabled &&
+    prevProps.onPress === nextProps.onPress
+  );
+});
 
 // --- STYLES ---
 const styles = StyleSheet.create({
